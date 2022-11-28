@@ -92,6 +92,12 @@ Active Experiment supports [GlobalID serialization](https://github.com/rails/glo
 
 ## Download and installation
 
+When using the gem in Rails, simply add this line to your application's Gemfile:
+
+```ruby
+gem "activeexperiment", github: "jejacks0n/active_experiment", require: "active_experiment/railtie"
+```
+
 The latest version of Active Experiment can be installed with RubyGems:
 
 ```
@@ -113,6 +119,8 @@ Active Experiment is released under the MIT license:
 
 The library is generally in a usable state, but there are a few things that should be finished up:
 
+- Release the gem.
+- Test against rails main (there's some deprecations and I'm not sure it works yet).
 - Finish adding test helpers and a base test case for experiments.
 - Finish the redis hash cache store implementation.
 - Write tests to cover the generator and railtie.
