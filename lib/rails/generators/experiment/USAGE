@@ -1,0 +1,12 @@
+Description:
+    Generates a new experiment. Pass the experiment name, either CamelCased or
+    under_scored, with or without the experiment postfix. Optionally, provide a
+    list of variant names.
+
+Examples:
+    `bin/rails generate experiment RedBlueExperiment red blue`
+
+      Creates the the following files:
+
+        Experiment: app/experiments/red_blue_experiment.rb
+        Test:       test/experiments/red_blue_experiment_test.rb
