@@ -37,7 +37,7 @@ module ActiveExperiment
         ingredients = Array(source).map { |value| identify_object(value).inspect }
         ingredients.unshift(name, digest_secret_key)
 
-        ::Digest::SHA2.new(digest_bit_length).hexdigest(ingredients.join('|'))
+        ::Digest::SHA2.new(digest_bit_length).hexdigest(ingredients.join("|"))
       end
 
       def identify_object(arg)

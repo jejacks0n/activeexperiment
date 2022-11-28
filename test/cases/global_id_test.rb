@@ -38,7 +38,7 @@ class GlobalIDTest < ActiveSupport::TestCase
   end
 
   class SubjectExperiment < ActiveExperiment::Base
-    control {}
+    control { }
 
     def log_context?
       true

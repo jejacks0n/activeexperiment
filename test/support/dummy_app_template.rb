@@ -6,7 +6,7 @@ require "active_experiment" # only needed for the test environment
 ActiveExperiment::Rollouts.register :red, Rails.root.join("lib/red_rollout.rb")
 ActiveExperiment::Rollouts.register :blue, Class.new(ActiveExperiment::Rollouts::BaseRollout) do
   def resolve_variant_for(*)
-    :blue  
+    :blue
   end
 end
 RUBY
@@ -14,7 +14,7 @@ RUBY
 file "lib/red_rollout.rb", <<-RUBY
 class RedRollout < ActiveExperiment::Rollouts::BaseRollout
   def resolve_variant_for(*)
-    :red  
+    :red
   end
 end
 RUBY

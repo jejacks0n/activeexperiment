@@ -142,10 +142,12 @@ class LogSubscriberTest < ActiveSupport::TestCase
     capture_logger do |logger|
       NoCallbackExperiment.run(raise_in_start_run: true)
 
+      # rubocop:disable Layout/TrailingWhitespace
       assert_equal <<~MESSAGES, logger.messages
         Could not log \"run.active_experiment\" event. RuntimeError: start_run 
         NoCallbackExperiment[key]  Completed running red variant (Duration: 0.0ms | Allocations: 0)
       MESSAGES
+      # rubocop:enable Layout/TrailingWhitespace
     end
   end
 

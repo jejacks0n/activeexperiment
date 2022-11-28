@@ -124,7 +124,7 @@ module ActiveExperiment
 
       def build_callback_message(event)
         variant = event.payload[:variant]
-        kind = event.name.split(".").first.gsub("run_", "").gsub("_", " ")
+        kind = event.name.split(".").first.gsub("run_", "").tr("_", " ")
 
         if variant.present?
           build_message(:info, "Resolved `#{variant}` variant in #{kind}", duration: true)

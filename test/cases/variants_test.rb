@@ -27,7 +27,7 @@ class VariantsTest < ActiveSupport::TestCase
 
   test "trying to register an already registered variant" do
     error = assert_raises(ArgumentError) do
-      SubjectExperiment.variant(:red) {}
+      SubjectExperiment.variant(:red) { }
     end
 
     assert_equal "The :red variant is already registered. "\
@@ -37,7 +37,7 @@ class VariantsTest < ActiveSupport::TestCase
 
   test "trying to override an unknown variant" do
     error = assert_raises(ArgumentError) do
-      SubjectExperiment.variant(:green, override: true) {}
+      SubjectExperiment.variant(:green, override: true) { }
     end
 
     assert_equal "Unable to override or add to unknown :green variant", error.message
@@ -45,7 +45,7 @@ class VariantsTest < ActiveSupport::TestCase
 
   test "trying to add and override at the same time" do
     error = assert_raises(ArgumentError) do
-      SubjectExperiment.variant(:red, override: true, add: true) {}
+      SubjectExperiment.variant(:red, override: true, add: true) { }
     end
 
     assert_equal "Provide either `override: true` or `add: true` but not both", error.message

@@ -33,7 +33,7 @@ class SegmentsTest < ActiveSupport::TestCase
 
   test "trying to define a segment rule into an unknown variant" do
     error = assert_raises(ArgumentError) do
-      SubjectExperiment.segment(into: :missing) {}
+      SubjectExperiment.segment(into: :missing) { }
     end
 
     assert_equal "Unknown missing variant", error.message

@@ -2,7 +2,7 @@
 
 begin
   version = File.read(File.expand_path("../RAILS_VERSION", __dir__)).strip
-rescue Errno::ENOENT => e
+rescue Errno::ENOENT
   require_relative "lib/active_experiment/version"
   version = ActiveExperiment.version
 end

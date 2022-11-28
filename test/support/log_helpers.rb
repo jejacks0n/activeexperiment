@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module LogHelpers
   def capture_logger(with_subscriber: TestLogSubscriber, logger: nil, level: 0, &block)
     old_logger = ActiveExperiment.logger

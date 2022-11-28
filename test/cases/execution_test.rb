@@ -44,7 +44,7 @@ class ExecutionTest < ActiveSupport::TestCase
   test "trying to override a variant that doesn't exist" do
     SubjectExperiment.run do |experiment|
       error = assert_raises(ArgumentError) do
-        experiment.on(:foo) {}
+        experiment.on(:foo) { }
       end
 
       assert_equal "Unknown :foo variant", error.message

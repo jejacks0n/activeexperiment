@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # require "generators/rspec"
 
 module Rspec # :nodoc:
@@ -13,7 +15,6 @@ module Rspec # :nodoc:
         def file_name
           @_file_name ||= super.sub(/_experiment\z/i, "")
         end
-
     end
   end
 end
