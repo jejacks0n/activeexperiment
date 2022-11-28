@@ -6,6 +6,8 @@ require "simplecov"
 
 SimpleCov.start do
   add_filter "test/"
+  add_filter "lib/active_experiment/version.rb"
+  add_filter "lib/active_experiment/gem_version.rb"
 end
 
 require "active_experiment"
