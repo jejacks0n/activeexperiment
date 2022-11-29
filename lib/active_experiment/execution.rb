@@ -124,7 +124,7 @@ module ActiveExperiment
 
       @results
     ensure
-      Executed.experiments << self
+      Executed << self
     end
 
     private

@@ -49,7 +49,15 @@ module ActiveExperiment
   class Executed < ActiveSupport::CurrentAttributes
     attribute :experiments
 
-    after_reset { self.experiments = [] }
+    # Interface to add an experiment to the executed experiments. This is
+    # intended to be used by the +run+ method of the experiment class.
+    #
+    # Experiments are added to the executed experiments if they have been
+    # assigned a variant.
+    def self.<<(experiment)
+      self.experiments ||= []
+      experiments << experiment
+    end
 
     # Returns a json of the experiments that have been run, with the experiment
     # name as the key, and the serialized experiment as the value. This assumes
@@ -67,8 +75,5 @@ module ActiveExperiment
     def self.to_json_array
       experiments.map(&:serialize).to_json
     end
-
-    # Reset to get the initial state.
-    reset
   end
 end

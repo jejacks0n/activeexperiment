@@ -12,7 +12,7 @@ Gem::Specification.new do |s|
   s.name        = "activeexperiment"
   s.version     = version
   s.summary     = "Experiment framework with pluggable rollouts and instrumentation."
-  s.description = "Declare experiments classes that can be run in different layers of an application."
+  s.description = "Declare experiments using classes that can be run in different layers of an application."
 
   s.required_ruby_version = ">= 2.7.0"
 
