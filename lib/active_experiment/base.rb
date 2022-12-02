@@ -6,6 +6,7 @@ require "active_experiment/log_subscriber"
 require "active_experiment/core"
 require "active_experiment/caching"
 require "active_experiment/callbacks"
+require "active_experiment/capture"
 require "active_experiment/execution"
 require "active_experiment/instrumentation"
 require "active_experiment/logging"
@@ -70,6 +71,7 @@ module ActiveExperiment
     include RunKey
     include Segments
     include Variants
+    include Capture
 
     ActiveSupport.run_load_hooks(:active_experiment, self)
   end

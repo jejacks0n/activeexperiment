@@ -37,13 +37,13 @@ module ActiveExperiment
   # In general, the following decision tree diagram helps illustrate the order
   # that things will be executed in running an experiment, utilizing caching
   # when possible:
-  #                run
-  #                 |
-  #            _ skipped? _
-  #           |            |
-  #          yes           no
-  #           |            |
-  #    default_variant     |
+  #                             run
+  #                              |
+  #                         _ skipped? _
+  #                        |            |
+  #                        no          yes
+  #                        |            |
+  #                        |    assigned/default_variant
   #                        |
   #               _ cached_variant? _
   #              |                   |
@@ -53,10 +53,10 @@ module ActiveExperiment
   #      |              |
   #     yes             no
   #      |              |
-  #      |  ___ rollout.variant_for _
-  #      | |            |            |
-  #    (cache)       (cache)      (cache)
-  #   variant_a     variant_b    variant_c
+  #      |  ___ rollout.variant_for __
+  #      | |            |             |
+  #    (cache)       (cache)       (cache)
+  #   variant_a     variant_b     variant_c
   #
   module Execution
     extend ActiveSupport::Concern
@@ -116,7 +116,7 @@ module ActiveExperiment
       @results = nil
       instrument(:run) do
         run_callbacks(:run) do
-          block.call(self) if block
+          call_run_block(&block) if block.present?
           @variant = resolve_variant
           @results = resolve_results
         end
@@ -146,6 +146,10 @@ module ActiveExperiment
         end
 
         resolved || @results
+      end
+
+      def call_run_block(&block)
+        block.call(self)
       end
   end
 end

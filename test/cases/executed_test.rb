@@ -62,7 +62,7 @@ class ExecutedTest < ActiveSupport::TestCase
 
     ActiveExperiment::Executed.reset
 
-    assert_equal 0, ActiveExperiment::Executed.experiments.length
+    assert_nil ActiveExperiment::Executed.experiments
   end
 
   class SubjectExperiment < ActiveExperiment::Base

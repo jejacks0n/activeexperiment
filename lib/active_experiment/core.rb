@@ -75,6 +75,7 @@ module ActiveExperiment
       @name = self.class.name.underscore
       @run_id = SecureRandom.uuid
       @run_key = run_key_hexdigest(context)
+      @options = {}
     end
 
     # Configures the experiment with the given options.
@@ -87,7 +88,7 @@ module ActiveExperiment
     # Raises an +ArgumentError+ if the variant is unknown.
     # Returns self to allow chaining, typically for calling run.
     def set(variant: nil, **options)
-      @options = options
+      @options = @options.merge(options)
       if variant.present?
         variant = variant.to_sym
         raise ArgumentError, "Unknown #{variant.inspect} variant" unless variants[variant]

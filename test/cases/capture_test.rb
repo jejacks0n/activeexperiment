@@ -1,0 +1,23 @@
+# frozen_string_literal: true
+
+require "helper"
+
+class CaptureTest < ActiveSupport::TestCase
+  include ViewHelpers
+
+  test "capturing the experiment run" do
+    result = SubjectExperiment.set(capture: self).run do |experiment|
+      "<div>" +
+        experiment.on(:red) { "<span>red</span>" } +
+        experiment.on(:blue) { "<span>blue</span>" } +
+      "</div>"
+    end
+
+    assert_equal "<div><span>red</span></div>", result
+  end
+
+  class SubjectExperiment < ActiveExperiment::Base
+    variant(:red) { "red" }
+    variant(:blue) { "blue" }
+  end
+end

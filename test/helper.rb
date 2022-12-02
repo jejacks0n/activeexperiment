@@ -17,6 +17,7 @@ ActiveExperiment.logger = Logger.new(nil)
 ActiveExperiment::Base.default_rollout = ActiveExperiment::Rollouts::BaseRollout.new(nil)
 
 require "support/log_helpers"
+require "support/view_helpers"
 require "support/global_id_object"
 
 require "active_support/testing/autorun"

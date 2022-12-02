@@ -225,6 +225,42 @@ MyAnalyticsSubscriber.attach_to(:active_experiment)
 
 TODO: Add more details about reporting and log subscribers.
 
+## Experiments in Views
+
+Experiments can be used in views, just like in any other part of your application. Sometimes though, you might want to render markup inside your run block too, and to do this, you'll need to "capture" the experiment.
+
+To accomplish this, you can ask the experiment to capture itself by providing the view scope. The following examples (HAML or ERB) help illustrate how to avoid duplicating markup within each variant block by putting it (the container div for instance) in the run block.
+
+<details>
+<summary>Expand HAML example</summary>
+
+```haml
+!= MyExperiment.set(capture: self).run(current_user) do |experiment|
+  %div.container
+    = experiment.on(:red) do
+      %button.red-pill Red
+    = experiment.on(:blue) do
+      %button.blue-pill Blue
+```
+</details>
+
+<details>
+<summary>Expand ERB example</summary>
+
+```erb
+<%== MyExperiment.set(capture: self).run do |experiment| %>
+  <div class="container">
+    <%= experiment.on(:red) do %>
+      <button class="red-pill">Red</button>
+    <% end %>
+    <%= experiment.on(:blue) do %>
+      <button class="blue-pill">Blue</button>
+    <% end %>
+  </div>
+<% end %>
+```
+</details>
+
 ## Client Side Experimentation
 
 While Active Experiment doesn't include any specific tooling for client side experimentation, it does provide the ability to surface experiments in the client layer.
