@@ -154,7 +154,8 @@ module ActiveExperiment
         "experiment" => name,
         "run_id" => run_id,
         "run_key" => run_key,
-        "variant" => variant.to_s
+        "variant" => variant.to_s,
+        "skipped" => skipped?
       }
     end
   end
