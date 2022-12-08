@@ -82,7 +82,7 @@ module ActiveExperiment
       super
 
       if capturable?
-        @results = @capture.to_s.gsub(/{{([\w_]+)}}/) { $1 == variant.to_s ? @results : "" }
+        @results = @capture.to_s.gsub(/{{([\w]+)}}/) { $1 == variant.to_s ? @results : "" }
       else
         @results
       end
