@@ -144,7 +144,7 @@ class LogSubscriberTest < ActiveSupport::TestCase
 
       # rubocop:disable Layout/TrailingWhitespace
       assert_equal <<~MESSAGES, logger.messages
-        Could not log \"run.active_experiment\" event. RuntimeError: start_run 
+        Could not log \"start_experiment.active_experiment\" event. RuntimeError: start_experiment 
         NoCallbackExperiment[key]  Completed running red variant (Duration: 0.0ms | Allocations: 0)
       MESSAGES
       # rubocop:enable Layout/TrailingWhitespace
@@ -157,32 +157,31 @@ class LogSubscriberTest < ActiveSupport::TestCase
 
       assert_equal <<~MESSAGES, logger.messages
         SubjectExperiment[key]  Running log_subscriber_test/subject_experiment (Run ID: 1fbde0db)
-        SubjectExperiment[key]  Aborted run callbacks (0.0ms)
-        SubjectExperiment[key]  Run aborted (Duration: 0.0ms | Allocations: 0)
+        SubjectExperiment[key]  Run aborted in run callbacks (Duration: 0.0ms | Allocations: 0)
       MESSAGES
     end
   end
 
   test "aborting in a variant callback" do
     capture_logger do |logger|
-      SubjectExperiment.run(abort_in_before_variant: true)
+      result = SubjectExperiment.run(abort_in_before_variant: true)
 
+      assert_nil result
       assert_equal <<~MESSAGES, logger.messages
         SubjectExperiment[key]  Running log_subscriber_test/subject_experiment (Run ID: 1fbde0db)
-        SubjectExperiment[key]  Aborted in variant callbacks (0.0ms)
-        SubjectExperiment[key]  Completed running red variant (Duration: 0.0ms | Allocations: 0)
+        SubjectExperiment[key]  Run aborted in red_variant callbacks (Duration: 0.0ms | Allocations: 0)
       MESSAGES
     end
   end
 
   test "aborting in a variant step" do
     capture_logger do |logger|
-      SubjectExperiment.set(variant: :green).run(abort_in_variant_step: true)
+      result = SubjectExperiment.set(variant: :green).run(abort_in_variant_step: true)
 
+      assert_nil result
       assert_equal <<~MESSAGES, logger.messages
         SubjectExperiment[key]  Running log_subscriber_test/subject_experiment (Run ID: 1fbde0db, Variant: green)
-        SubjectExperiment[key]  Aborted running variant `green` steps (0.0ms)
-        SubjectExperiment[key]  Completed running green variant (Duration: 0.0ms | Allocations: 0)
+        SubjectExperiment[key]  Run aborted in green_variant_steps callbacks (Duration: 0.0ms | Allocations: 0)
       MESSAGES
     end
   end
@@ -207,8 +206,9 @@ class LogSubscriberTest < ActiveSupport::TestCase
     # should result in the red variant being run, but could be confusing for
     # any reporting layers.
     capture_logger do |logger|
-      SubjectExperiment.run(segment: true, set_variant_in_before_variant: true)
+      result = SubjectExperiment.run(segment: true, set_variant_in_before_variant: true)
 
+      assert_equal "red", result
       assert_equal <<~MESSAGES, logger.messages
         SubjectExperiment[key]  Running log_subscriber_test/subject_experiment (Run ID: 1fbde0db)
         SubjectExperiment[key]  Segmented into the `blue` variant (0.0ms)
@@ -262,7 +262,7 @@ class LogSubscriberTest < ActiveSupport::TestCase
 
       assert_equal <<~MESSAGES, logger.messages
         NoCallbackExperiment[key]  Running log_subscriber_test/no_callback_experiment (Run ID: 1fbde0db)
-        NestedExperiment[key]  Nested within LogSubscriberTest::NoCallbackExperiment[fe41da0e]
+        NestedExperiment[key]  Nesting experiment in LogSubscriberTest::NoCallbackExperiment[fe41da0e]
         NestedExperiment[key]  Running log_subscriber_test/nested_experiment (Run ID: 1fbde0db)
         NestedExperiment[key]  Completed running control variant (Duration: 0.0ms | Allocations: 0)
         NoCallbackExperiment[key]  Completed running red variant (Duration: 0.0ms | Allocations: 0)
@@ -352,8 +352,8 @@ class LogSubscriberTest < ActiveSupport::TestCase
   end
 
   class TestLogSubscriber < LogHelpers::TestLogSubscriber
-    def start_run(event)
-      raise "start_run" if event.payload[:experiment].context[:raise_in_start_run]
+    def start_experiment(event)
+      raise "start_experiment" if event.payload[:experiment].context[:raise_in_start_run]
       super
     end
   end

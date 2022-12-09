@@ -114,8 +114,9 @@ module ActiveExperiment
       raise ExecutionError, "No variants registered" if variant_names.empty?
 
       @results = nil
-      instrument(:run) do
-        run_callbacks(:run) do
+      instrument(:start_experiment)
+      instrument(:process_run) do
+        run_callbacks(:run, :process_run_callbacks) do
           call_run_block(&block) if block.present?
           @variant = resolve_variant
           @results = resolve_results
@@ -132,7 +133,7 @@ module ActiveExperiment
         return variant || default_variant if skipped?
 
         resolved = cached_variant(variant) do
-          run_callbacks(:segment)
+          run_callbacks(:segment, :process_segment_callbacks)
           variant || rollout.variant_for(self)
         end
 
@@ -141,7 +142,7 @@ module ActiveExperiment
 
       def resolve_results
         resolved = nil
-        run_callbacks(variants[variant]) do
+        run_callbacks(variants[variant], :process_variant_callbacks) do
           resolved = variant_step_chains[variant]&.call
         end
 

@@ -7,11 +7,8 @@ module ActiveExperiment
   #
   # TODO: finish documenting.
   class LogSubscriber < ActiveSupport::LogSubscriber
-    def start_run(event)
-      if execution_stack.any?
-        experiment_logger(event) { build_message(:warn, "Nested within #{experiment_identifier(execution_stack.last)}") }
-      end
-
+    def start_experiment(event)
+      warn_of_nested_experiment(event) if execution_stack.any?
       experiment_logger(event) do |experiment|
         execution_stack.push(experiment)
 
@@ -23,9 +20,9 @@ module ActiveExperiment
       end
     end
 
-    def run(event)
+    def process_run(event)
       errored = event.payload[:exception_object]
-      aborted = !errored && event.children.any? { |child| child.payload[:aborted] }
+      aborted = !errored && event.payload[:aborted]
 
       experiment_logger(event) do |experiment|
         execution_stack.pop
@@ -33,7 +30,7 @@ module ActiveExperiment
         if errored
           build_message(:error, "Run failed: #{errored.class} (#{errored.message})")
         elsif aborted
-          build_message(:info, "Run aborted", details: true)
+          build_message(:info, "Run aborted in #{aborted} callbacks", details: true)
         else
           variant_name = experiment.variant
           if experiment.variant_names.include?(variant_name)
@@ -47,23 +44,11 @@ module ActiveExperiment
       end
     end
 
-    def run_run_callbacks(event)
-      return if event.payload[:exception_object].present?
-
-      experiment_logger(event) do
-        if event.payload[:aborted].present?
-          build_message(:info, "Aborted run callbacks", duration: true)
-        else
-          build_message(:debug, "Completed run callbacks", duration: true)
-        end
-      end
-    end
-
-    def run_segment_callbacks(event)
+    def process_segment_callbacks(event)
       return if event.payload[:exception_object].present?
 
       experiment_logger(event) do |experiment|
-        if event.payload[:aborted].present?
+        if event.payload[:aborted] == :segment
           build_message(:info, "Segmented into the `#{experiment.variant}` variant", duration: true)
         else
           build_callback_message(event)
@@ -71,35 +56,25 @@ module ActiveExperiment
       end
     end
 
-    def run_variant_callbacks(event)
-      return if event.payload[:exception_object].present?
-
-      experiment_logger(event) do
-        if event.payload[:aborted].present?
-          build_message(:warn, "Aborted in variant callbacks", duration: true)
-        else
-          build_callback_message(event)
-        end
-      end
+    def process_run_callbacks(event)
+      experiment_logger(event) { build_callback_message(event) }
     end
 
-    def run_variant_steps(event)
-      return if event.payload[:exception_object].present?
-      return unless event.payload[:aborted].present?
-
-      experiment_logger(event) do |experiment|
-        build_message(:warn, "Aborted running variant `#{experiment.variant}` steps", duration: true)
-      end
+    def process_variant_callbacks(event)
+      experiment_logger(event) { build_callback_message(event) }
     end
 
-    def start(name, id, payload)
-      super
-      try("start_#{name.split(".").first}", event_stack.last)
-    rescue => e
-      log_exception(name, e)
+    def process_variant_steps(event)
+      experiment_logger(event) { build_callback_message(event) }
     end
 
     private
+      def warn_of_nested_experiment(event)
+        experiment_logger(event) do
+          build_message(:warn, "Nesting experiment in #{experiment_identifier(execution_stack.last)}")
+        end
+      end
+
       def experiment_logger(event, &block)
         return unless logger.present?
 
@@ -123,13 +98,15 @@ module ActiveExperiment
       end
 
       def build_callback_message(event)
-        variant = event.payload[:variant]
-        kind = event.name.split(".").first.gsub("run_", "").tr("_", " ")
+        return if event.payload[:exception_object].present?
 
-        if variant.present?
-          build_message(:info, "Resolved `#{variant}` variant in #{kind}", duration: true)
-        else
-          build_message(:debug, "Completed #{kind}", duration: true)
+        variant = event.payload[:variant]
+        process = event.name.split(".").first.gsub("process_", "").tr("_", " ")
+
+        if variant.present? && process != "run callbacks"
+          build_message(:info, "Resolved `#{variant}` variant in #{process}", duration: true)
+        elsif process != "variant steps"
+          build_message(:debug, "Completed #{process}", duration: true)
         end
       end
 
@@ -140,9 +117,9 @@ module ActiveExperiment
       def colorized_message(message, level: :info)
         case level
         when :error
-          color(message, RED, true)
+          color(message, RED, bold: true)
         when :warn
-          color(message, YELLOW, true)
+          color(message, YELLOW, bold: true)
         else
           message
         end
@@ -155,9 +132,9 @@ module ActiveExperiment
       def colorized_duration(event, parens: true)
         duration = event.duration.round(1)
         if duration > 1000
-          ret = color("#{duration}ms", RED, true)
+          ret = color("#{duration}ms", RED, bold: true)
         elsif duration > 500
-          ret = color("#{duration}ms", YELLOW, true)
+          ret = color("#{duration}ms", YELLOW, bold: true)
         else
           ret = "#{duration}ms"
         end

@@ -3,7 +3,14 @@
 module LogHelpers
   def capture_logger(with_subscriber: TestLogSubscriber, logger: nil, level: 0, &block)
     old_logger = ActiveExperiment.logger
-    ActiveExperiment.logger = logger.nil? ? ActiveSupport::TaggedLogging.new(TestLogger.new(level: level)) : logger
+    if logger.nil?
+      ActiveExperiment.logger = ActiveSupport::TaggedLogging.new(TestLogger.new(level: level))
+    elsif logger == false
+      ActiveExperiment.logger = nil
+    else
+      ActiveExperiment.logger = logger
+    end
+
     ActiveExperiment::LogSubscriber.detach_from(:active_experiment)
     with_subscriber.attach_to(:active_experiment, inherit_all: true) if with_subscriber
     SecureRandom.stub(:uuid, "1fbde0db") do

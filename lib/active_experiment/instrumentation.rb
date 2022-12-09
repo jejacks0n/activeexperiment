@@ -10,9 +10,9 @@ module ActiveExperiment
     extend ActiveSupport::Concern
 
     private
-      def run_callbacks(kind, **payload, &block)
+      def run_callbacks(kind, event_name, **payload, &block)
         if kind.present? && __callbacks[kind.to_sym].any?
-          instrument(event_name_for_callback(kind), **payload) do
+          instrument(event_name, **payload) do
             super(kind, &block)
           end
         else
@@ -22,39 +22,24 @@ module ActiveExperiment
 
       def instrument(operation, **payload, &block)
         operation = "#{operation}.active_experiment"
-        enhanced_block = ->(event_payload) do
-          variant_before = self.variant
-          value = block ? block.call : nil
+        payload = payload.merge(experiment: self)
+        return ActiveSupport::Notifications.instrument(operation, payload) unless block.present?
 
-          if variant_before != self.variant
-            event_payload[:variant] = self.variant
-          end
+        ActiveSupport::Notifications.instrument(operation, payload) do |event_payload|
+          variant = @variant
+          results = block.call
 
-          if defined?(@_halted_callback_hook_called) && @_halted_callback_hook_called
-            event_payload[:aborted] = true
-            @_halted_callback_hook_called = nil
-          end
+          event_payload[:variant] = @variant if variant != @variant
+          event_payload[:aborted] = @halted_callback if @halted_callback.present?
+          @halted_callback = nil if @halted_callback == :segment
 
-          value
+          results
         end
-
-        ActiveSupport::Notifications.instrument(operation, payload.merge(experiment: self), &enhanced_block)
       end
 
-      def event_name_for_callback(kind)
-        kind = kind.to_s
-        if kind.end_with?("_variant")
-          return "run_variant_callbacks"
-        elsif kind.end_with?("_variant_steps")
-          return "run_variant_steps"
-        end
-
-        "run_#{kind}_callbacks"
-      end
-
-      def halted_callback_hook(*)
+      def halted_callback_hook(filter, name)
         super
-        @_halted_callback_hook_called = true
+        @halted_callback = name
       end
   end
 end

@@ -137,7 +137,8 @@ module ActiveExperiment
     private
       def variant_step_chains
         @variant_step_chains ||= variants.transform_values do |callback_chain|
-          -> { run_callbacks("#{callback_chain}#{STEP_CHAIN_SUFFIX}") { @results } }
+          chain_name = "#{callback_chain}#{STEP_CHAIN_SUFFIX}"
+          -> { run_callbacks(chain_name, :process_variant_steps) { @results } }
         end
       end
   end
