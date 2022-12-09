@@ -272,7 +272,7 @@ In the layout, the experiment data can be rendered as JSON for instance:
 ```erb
 <title>My App</title>
 <script>
-  window.experiments = <%= ActiveExperiment::Executed.to_json %>
+  window.experiments = <%== ActiveExperiment::Executed.to_json %>
 </script>
 ```
 
@@ -280,7 +280,7 @@ Or each experiment can be iterated over and rendered individually:
 
 ```erb
 <% ActiveExperiment::Executed.experiments.each do |experiment| %>
-  <meta name="<%= experiment.name %>" content="<%= experiment.serialize.to_json %>">
+  <meta name="<%= experiment.name %>" content="<%== experiment.serialize.to_json %>">
 <% end %>
 ```
 

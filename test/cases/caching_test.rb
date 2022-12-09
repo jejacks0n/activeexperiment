@@ -71,6 +71,7 @@ class CachingTest < ActiveSupport::TestCase
     result = experiment.set(variant: :blue).run
 
     assert_equal "blue", result
+    # TODO: Should this be cached?
     assert_nil SubjectExperiment.cache_store.read(experiment.cache_key)
   end
 
