@@ -18,6 +18,7 @@ module ActiveExperiment
   autoload :ConfiguredExperiment
   autoload :Executed
   autoload :Rollouts
+  autoload :Capturable
 
   autoload :TestCase
   autoload :TestHelper

@@ -8,7 +8,7 @@ Experimentation is complex. There are a lot of different ways to run experiments
 
 ## Usage
 
-Start by defining an experiment and adding some variants to it:
+Start by defining an experiment class and adding some variants to it:
 
 ```ruby
 class MyExperiment < ApplicationExperiment
@@ -17,19 +17,19 @@ class MyExperiment < ApplicationExperiment
 end
 ```
 
-This experiment can be generated using the rails generator:
+This experiment can be generated using the Rails generator:
 
 ```bash
 rails generate experiment my_experiment red blue
 ```
 
-Run the experiment anywhere in the application by providing a context:
+Run the experiment anywhere in the application by providing it a context:
 
 ```ruby
 MyExperiment.run(current_user) # => "red" or "blue"
 ```
 
-Run the experiment using local scope and helpers to override default variant behaviors:
+The experiment can also be run using local scope and helpers to override the default variants:
 
 ```ruby
 MyExperiment.run(current_user) do |experiment|
@@ -38,9 +38,9 @@ MyExperiment.run(current_user) do |experiment|
 end
 ```
 
-That's it!
+That's it! When this experiment is encountered by different users, half<sup>&#8224;</sup> will get the red variant, half will get the blue variant, and each will always get the same.
 
-When this experiment is encountered by different users, half of them will get the red variant, half will get the blue variant, and each will always get the same.
+<small>&#8224; roughly half, for the statistically pedantic.</small> 
 
 ## Download and Installation
 
@@ -174,23 +174,24 @@ Custom rollouts can be registered to autoload as well, so they're only loaded wh
 ```ruby
 ActiveExperiment::Rollouts.register(
   :feature_flag, 
-  Rails.root.join("lib/feature_flag_rollout.rb")
+  "lib/feature_flag_rollout.rb"
 )
 ```
 
-There's a world of flexibility with custom rollouts. One creative and simple rollout is to use the experiment itself:
+There's a world of flexibility with custom rollouts. One creative and simple rollout concept is to use the experiment itself:
 
 ```ruby
-module MySimpleRollout
-  def enabled_for(*); true; end  
-  def variant_for(*); variant_names.sample; end
-end
-
 class MyExperiment < ActiveExperiment::Base
-  extend MySimpleRollout
-  
   variant(:red) { "red" }
   variant(:blue) { "blue" }
+
+  def self.enabled_for(*)
+    true
+  end
+
+  def self.variant_for(*)
+    variant_names.sample
+  end
   
   use_rollout self
 end
@@ -237,6 +238,17 @@ Experiments can be used in views, just like in any other part of your applicatio
 
 To accomplish this, you can ask the experiment to capture itself by providing the view scope. The following examples (HAML or ERB) help illustrate how to avoid duplicating markup within each variant block by putting it (the container div for instance) in the run block.
 
+Remember to include the `ActiveExperiment::Capturable` module in your experiment class:
+
+```ruby
+class MyExperiment < ActiveExperiment::Base
+  include ActiveExperiment::Capturable
+  
+  variant(:red) { "red" }
+  variant(:blue) { "blue" }
+end
+```
+
 <details>
 <summary>Expand HAML example</summary>
 
@@ -269,7 +281,7 @@ To accomplish this, you can ask the experiment to capture itself by providing th
 
 ## Client Side Experimentation
 
-While Active Experiment doesn't include any specific tooling for client side experimentation, it does provide the ability to surface experiments in the client layer.
+While Active Experiment doesn't include any specific tooling for client side experimentation at this time, it does provide the ability to surface experiments in the client layer.
 
 Whenever an experiment is run in the request lifecycle, it's stored so it can be provided to the client. This means that if an experiment is run in controller, a view, a helper, etc. it will be available to the client.
 

@@ -17,6 +17,8 @@ class CaptureTest < ActiveSupport::TestCase
   end
 
   class SubjectExperiment < ActiveExperiment::Base
+    include ActiveExperiment::Capturable
+
     variant(:red) { "red" }
     variant(:blue) { "blue" }
   end
