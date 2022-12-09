@@ -17,13 +17,13 @@ class MyExperiment < ApplicationExperiment
 end
 ```
 
-This experiment can be generated using the generator:
+This experiment can be generated using the rails generator:
 
 ```bash
 rails generate experiment my_experiment red blue
 ```
 
-Run the experiment anywhere in the application, providing a context:
+Run the experiment anywhere in the application by providing a context:
 
 ```ruby
 MyExperiment.run(current_user) # => "red" or "blue"
@@ -38,15 +38,9 @@ MyExperiment.run(current_user) do |experiment|
 end
 ```
 
-Run the experiment, always assigning a specific variant:
-
-```ruby
-MyExperiment.set(variant: :red).run(current_user) # => "red"
-```
-
 That's it!
 
-When this experiment is encountered by different users, half of them will get the red variant, half will get the blue variant, and each will always get the same variant.
+When this experiment is encountered by different users, half of them will get the red variant, half will get the blue variant, and each will always get the same.
 
 ## Download and Installation
 
@@ -212,18 +206,30 @@ A subscriber can be used to listen for experiment events and report them to a se
 
 ```ruby
 class MyAnalyticsSubscriber
-  def run(event)
-    error = event.payload[:exception_object]
+  def process_run(event)
     experiment = event.payload[:experiment]
+    return if experiment.skipped?
 
-    Analytics.report(experiment.serialize, error: error)
+    Analytics.report(
+      experiment.serialize,
+      error: event.payload[:exception_object]
+    )
   end
 end
 
 MyAnalyticsSubscriber.attach_to(:active_experiment)
 ```
 
-TODO: Add more details about reporting and log subscribers.
+The following Active Experiment events are available for subscribers:
+
+- `start_experiment` - The experiment has begun.
+- `process_segment_callbacks` - The experiment has processed all segment rules. A variant may have been resolved through this step.
+- `process_variant_steps` - An experiment variant has been run.
+- `process_variant_callbacks` - The experiment has processed variant callbacks.
+- `process_run_callbacks` - The experiment has processed run callbacks.
+- `process_run` - The experiment has completed and can be reported on.
+
+In each of these events, the experiment instance is available in the `event.payload` hash.
 
 ## Experiments in Views
 
