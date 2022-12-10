@@ -12,8 +12,8 @@ class RolloutTest < ActiveSupport::TestCase
       ActiveExperiment::Base.default_rollout = {}
     end
 
-    assert_equal "Invalid rollout."\
-      " Rollouts must respond to enabled_for, variant_for.",
+    assert_equal "Invalid rollout. "\
+      "Rollouts must respond to enabled_for, variant_for.",
       error.message
   end
 

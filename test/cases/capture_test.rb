@@ -7,10 +7,10 @@ class CaptureTest < ActiveSupport::TestCase
 
   test "capturing the experiment run" do
     result = SubjectExperiment.set(capture: self).run do |experiment|
-      "<div>" +
-        experiment.on(:red) { "<span>red</span>" } +
-        experiment.on(:blue) { "<span>blue</span>" } +
-      "</div>"
+      buf = +"<div>"
+      buf << experiment.on(:red) { "<span>red</span>" }
+      buf << experiment.on(:blue) { "<span>blue</span>" }
+      buf << "</div>"
     end
 
     assert_equal "<div><span>red</span></div>", result
@@ -24,10 +24,10 @@ class CaptureTest < ActiveSupport::TestCase
     end
 
     result = UncapturableExperiment.set(capture: self).run do |experiment|
-      "<div>" +
-        experiment.on(:red) { "<span>red</span>" } +
-        experiment.on(:blue) { "<span>blue</span>" } +
-      "</div>"
+      buf = +"<div>"
+      buf << experiment.on(:red) { "<span>red</span>" }
+      buf << experiment.on(:blue) { "<span>blue</span>" }
+      buf << "</div>"
     end
 
     assert_equal "<span>red</span>", result
