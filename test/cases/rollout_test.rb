@@ -13,14 +13,14 @@ class RolloutTest < ActiveSupport::TestCase
     end
 
     assert_equal "Invalid rollout. "\
-      "Rollouts must respond to enabled_for, variant_for.",
+      "Rollouts must respond to skipped_for, variant_for.",
       error.message
   end
 
   test "an experiment that uses itself as a rollout" do
     CustomRolloutModule = Module.new do
-      def enabled_for(*)
-        true
+      def skipped_for(*)
+        false
       end
 
       def variant_for(*)

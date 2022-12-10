@@ -145,8 +145,8 @@ Project specific rollouts can be defined and registered too. To illustrate, here
 
 ```ruby
 class FeatureFlagRollout < ActiveExperiment::Rollouts::BaseRollout
-  def enabled_for(experiment)
-    Feature.enabled?(@rollout_options[:flag_name] || experiment.name)
+  def skipped_for(experiment)
+    !Feature.enabled?(@rollout_options[:flag_name] || experiment.name)
   end
 
   def variant_for(experiment)
@@ -185,8 +185,8 @@ class MyExperiment < ActiveExperiment::Base
   variant(:red) { "red" }
   variant(:blue) { "blue" }
 
-  def self.enabled_for(*)
-    true
+  def self.skipped_for(*)
+    false
   end
 
   def self.variant_for(*)

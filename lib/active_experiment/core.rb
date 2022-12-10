@@ -141,12 +141,12 @@ module ActiveExperiment
 
     # Returns true if the experiment should be skipped.
     #
-    # If the experiment has been instructed to be skipped, or if the rollout is
-    # not enabled, then the experiment should be viewed as skipped.
+    # If the experiment has been instructed to be skipped manually, or if the
+    # rollout determines the experiment should be skipped.
     def skipped?
       return @skip if defined?(@skip)
 
-      @skip = !self.rollout.enabled_for(self)
+      @skip = self.rollout.skipped_for(self)
     end
 
     # Returns a hash with the experiment data.

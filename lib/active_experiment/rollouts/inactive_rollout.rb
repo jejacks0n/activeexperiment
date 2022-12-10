@@ -12,8 +12,8 @@ module ActiveExperiment
     #   ActiveExperiment::Base.default_rollout = :inactive
     #   Rails.application.config.active_experiment.default_rollout = :inactive
     class InactiveRollout < BaseRollout
-      def enabled_for(*)
-        false
+      def skipped_for(*)
+        true
       end
 
       def variant_for(*)

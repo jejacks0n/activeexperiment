@@ -46,7 +46,7 @@ class TestHelperTest < ActiveSupport::TestCase
   test "stub skipping an experiment" do
     stub_experiment(OtherExperiment, :red, skip: true) do |rollout|
       assert_equal "control", OtherExperiment.run
-      assert_equal false, rollout.enabled_for(OtherExperiment.new) # skipped
+      assert_equal true, rollout.skipped_for(OtherExperiment.new) # skipped
       assert_equal :red, rollout.variant_for(OtherExperiment.new) # still assigns red
       assert_equal true, OtherExperiment.new.skipped?
     end

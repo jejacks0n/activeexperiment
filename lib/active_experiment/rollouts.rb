@@ -25,8 +25,8 @@ module ActiveExperiment
   # library that also assigns a random variant.
   #
   #   class FeatureFlagRollout < ActiveExperiment::Rollouts::BaseRollout
-  #     def enabled_for(experiment)
-  #       FeatureFlag.enabled?(@rollout_options[:flag_name] || experiment.name)
+  #     def skipped_for(experiment)
+  #       !FeatureFlag.enabled?(@rollout_options[:flag_name] || experiment.name)
   #     end
   #
   #     def variant_for(experiment)
@@ -73,7 +73,7 @@ module ActiveExperiment
 
     # Allows registering custom rollouts.
     #
-    # The rollout must implement the +enabled_for+ and +variant_for+ methods,
+    # The rollout must implement the +skipped_for+ and +variant_for+ methods,
     # which is checked when the rollout is used in an experiment.
     #
     # If a string or +Pathname+ is provided, the rollout will be autoloaded.
@@ -102,7 +102,7 @@ module ActiveExperiment
 
     # Base class for the included rollouts. Useful for custom rollouts.
     #
-    # Any rollout that inherits from this class will be valid, enabled, and
+    # Any rollout that inherits from this class will be valid, not skipped, and
     # will assign the first defined variant unless the provided methods are
     # overridden.
     class BaseRollout
@@ -113,9 +113,9 @@ module ActiveExperiment
         yield if block
       end
 
-      # The base rollout is always enabled.
-      def enabled_for(_experiment)
-        true
+      # The base rollout is never skipped.
+      def skipped_for(_experiment)
+        false
       end
 
       # The base rollout always assigns the first variant.

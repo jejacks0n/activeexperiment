@@ -71,7 +71,7 @@ module ActiveExperiment
     # should be skipped.
     #
     #   stub_experiment(SubjectExperiment, skip: true) do |mock_rollout|
-    #     assert_equal :false, mock_rollout.enabled_for('_anything_')
+    #     assert_equal false, mock_rollout.skipped_for('_anything_')
     #     assert_equal :red, mock_rollout.variant_for('_anything_')
     #     assert_nil SubjectExperiment.run
     #   end
@@ -230,28 +230,22 @@ module ActiveExperiment
         super
       end
 
-      def enabled_for(ex)
+      def skipped_for(ex)
         raise ArgumentError, "expecting a #{@experiment_class.name}" unless ex.is_a?(@experiment_class)
 
-        # Accepts a callable in the :enabled option.
-        callable = opts[:enabled]
-        return callable.call(ex) if callable.respond_to?(:call)
+        skip = opts[:skip]
 
         # Accepts a callable in the :skip option.
-        callable = opts[:skip]
-        return callable.call(ex) if callable.respond_to?(:call)
+        return skip.call(ex) if skip.respond_to?(:call)
 
-        # Accepts a boolean in the :enabled or :skip options.
-        return false if opts[:enabled] == false || opts[:skip] == true
-
-        # Fall back to being enabled.
-        true
+        # Accepts a boolean in the :skip options, with a default of false.
+        !!skip
       end
 
       def variant_for(ex)
         raise ArgumentError, "expecting a #{@experiment_class.name}" unless ex.is_a?(@experiment_class)
 
-        # Accepts an array of variants in the :variant option.
+        # Accepts an array in the :variant option.
         variant = opts[:variant]
         variant = variant[((@assigned += 1) - 1) % variant.size] if variant.is_a?(Array) && !variant.empty?
 

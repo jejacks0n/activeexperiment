@@ -3,10 +3,10 @@
 require "helper"
 
 class InactiveRolloutTest < ActiveSupport::TestCase
-  test "being enabled" do
+  test "being skipped" do
     experiment = SubjectExperiment.new
 
-    assert_equal false, experiment.rollout.enabled_for(experiment)
+    assert_equal true, experiment.rollout.skipped_for(experiment)
   end
 
   test "variant assignment" do

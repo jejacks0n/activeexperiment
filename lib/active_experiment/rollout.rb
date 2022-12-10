@@ -7,7 +7,7 @@ module ActiveExperiment
   # a custom rollout.
   #
   # When configuring the default rollout, you can use a symbol or something
-  # that responds to the required +enabled_for+ and +variant_for+ methods. To
+  # that responds to the required +skipped_for+ and +variant_for+ methods. To
   # configure the default rollout:
   #
   #   ActiveExperiment::Base.default_rollout = :random
@@ -27,8 +27,8 @@ module ActiveExperiment
   # long as the class responds to the required methods, it can be used.
   #
   #   module ExperimentRolloutExample
-  #     def enabled_for?(*)
-  #       true
+  #     def skipped_for(*)
+  #       false
   #     end
   #
   #     def variant_for(*)
@@ -51,7 +51,7 @@ module ActiveExperiment
   module Rollout
     extend ActiveSupport::Concern
 
-    REQUIRED_ROLLOUT_METHODS = [:enabled_for, :variant_for].freeze
+    REQUIRED_ROLLOUT_METHODS = [:skipped_for, :variant_for].freeze
     private_constant :REQUIRED_ROLLOUT_METHODS
 
     included do
