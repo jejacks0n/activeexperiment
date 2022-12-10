@@ -97,9 +97,9 @@ class CachingTest < ActiveSupport::TestCase
     SubjectExperiment.set(variant: :blue).cache_each([1, 2, 3])
 
     [
-      "caching_test/subject_experiment/ddcfc1505fdcb8b5c4022c4b6d4bb5da",
-      "caching_test/subject_experiment/e862b4fc3c3287350118eaa1a4c561af",
-      "caching_test/subject_experiment/e2eda826db2757a9110ebfc89ea15920"
+      "caching_test/subject_experiment:ddcfc1505fdcb8b5c4022c4b6d4bb5da",
+      "caching_test/subject_experiment:e862b4fc3c3287350118eaa1a4c561af",
+      "caching_test/subject_experiment:e2eda826db2757a9110ebfc89ea15920"
     ].each do |key|
       assert_equal :blue, SubjectExperiment.cache_store.read(key)
     end
