@@ -1,0 +1,80 @@
+version: 2.0
+defaults: &defaults
+  working_directory: ~/repo
+  docker:
+    - image: cimg/ruby:3.0
+      environment:
+        CC_TEST_REPORTER_ID: 5f7c595e7d7a9b7e97a0d4ca8a68a18164721a70ea370238d5cc2e632d51c121
+        RAILS_ENV: test
+    - image: cimg/redis:7.0
+jobs:
+  build:
+    <<: *defaults
+    steps:
+      - run:
+          name:  Download cc-test-reporter
+          command: |
+            mkdir -p tmp/
+            curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > ./tmp/cc-test-reporter
+            chmod +x ./tmp/cc-test-reporter
+      - persist_to_workspace:
+          root: tmp
+          paths:
+            - cc-test-reporter
+  rubocop:
+    <<: *defaults
+    steps:
+      - checkout
+      - attach_workspace:
+          at: ~/repo/tmp
+      - run:
+          name: Setup dependencies
+          command: |
+            bundle install --without production --path=${BUNDLE_PATH:-vendor/bundle}
+      - run:
+          name: Run rubocop
+          command: |
+            bundle exec rubocop
+  unit-tests:
+    <<: *defaults
+    steps:
+      - checkout
+      - attach_workspace:
+          at: ~/repo/tmp
+      - run:
+          name: Setup dependencies
+          command: |
+            bundle install --without production --path=${BUNDLE_PATH:-vendor/bundle}
+      - run:
+          name: Run unit tests
+          command: |
+            bundle exec rake
+            ./tmp/cc-test-reporter format-coverage -t simplecov -o tmp/codeclimate.unit.json
+      - persist_to_workspace:
+          root: tmp
+          paths:
+            - codeclimate.unit.json
+  upload-coverage:
+    <<: *defaults
+    steps:
+      - attach_workspace:
+          at: ~/repo/tmp
+      - run:
+          name: Upload coverage results to Code Climate
+          command: |
+            ./tmp/cc-test-reporter sum-coverage tmp/codeclimate.*.json -p 1 -o tmp/codeclimate.total.json
+            ./tmp/cc-test-reporter upload-coverage -i tmp/codeclimate.total.json
+workflows:
+  version: 2
+  commit:
+    jobs:
+      - build
+      - rubocop:
+          requires:
+            - build
+      - unit-tests:
+          requires:
+            - build
+      - upload-coverage:
+          requires:
+            - unit-tests
