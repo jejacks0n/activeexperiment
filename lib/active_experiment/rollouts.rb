@@ -64,6 +64,7 @@ module ActiveExperiment
   module Rollouts
     extend ActiveSupport::Autoload
 
+    autoload :InactiveRollout
     autoload :PercentRollout
     autoload :RandomRollout
 
