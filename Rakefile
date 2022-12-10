@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "bundler/gem_tasks"
 require "rake/testtask"
 
 # rdoc --main README.rdoc -i lib/active_experiment/**/*
