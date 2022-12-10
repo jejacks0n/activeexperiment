@@ -1,7 +1,7 @@
 <% module_namespacing do -%>
 class <%= class_name %>Experiment < <%= parent_class_name.classify %>
 <% variant_names.each do |variant| -%>
-<% if %w[control].include?(variant) -%>
+<% if variant == "control" -%>
   <%= variant -%> { }
 <% else -%>
   variant(:<%= variant -%>) { }
@@ -9,14 +9,13 @@ class <%= class_name %>Experiment < <%= parent_class_name.classify %>
 <% end -%>
 
 <% unless options[:skip_comments] -%>
-  # Experiments are divided into two concepts. The definition, and when run.
+<% unless variant_names.include?("control") -%>
+  # Specify a default variant to use when the experiment is skipped:
+  #use_default_variant :<%= variant_names.first %>
   #
-  # The definition is the code that defines the experiment. This is the code
-  # that helps us test that the experiment will work as expected when run.
-  #
-  # When running an experiment a context should be provided, and variants can
-  # be overridden. The context is used by the experiment to make decisions and
-  # should be consistent across runs. A common example is the current_user:
+<% end -%>
+  # Run this experiment by providing a context (current_user in this example),
+  # and optionally override the variant behaviors:
   #
   #   <%= class_name %>Experiment.run(current_user) do |experiment|
 <% variant_names.each do |variant| -%>
@@ -24,14 +23,10 @@ class <%= class_name %>Experiment < <%= parent_class_name.classify %>
 <% end -%>
   #   end
   #
-  # Each user will consistently get the same variant.
+  # Each context (user) will consistently have the same variant assigned. More
+  # advanced logic can be provided to segment contexts into specific variants:
   #
-  # Segmenting allows for advanced logic to determine which variant should be
-  # assigned. For example, one variant could be assigned to all old accounts,
-  # and another to all users with a given name:
-  #
-  #segment :old_accounts, into: :<%= variant_names.first %>
-  #segment(into: :<%= variant_names.last -%>) { context.first_name == "Richard" }
+  #segment :old_accounts, into: :<%= variant_names.last %>
   #def old_accounts
   #  context.created_at < 1.year.ago
   #end
