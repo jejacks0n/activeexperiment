@@ -61,6 +61,16 @@ class TestHelperTest < ActiveSupport::TestCase
     end
   end
 
+  test "skipped experiments are counted in runs" do
+    stub_experiment(SubjectExperiment, skip: true) do
+      assert_experiments 0
+
+      SubjectExperiment.run
+
+      assert_experiments 1
+    end
+  end
+
   test "assert experiment run counts" do
     assert_no_experiments
     assert_experiments 0 # same as assert_no_experiments

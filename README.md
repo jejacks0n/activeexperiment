@@ -302,6 +302,60 @@ Or each experiment can be iterated over and rendered individually:
 <% end %>
 ```
 
+## Testing
+
+Active Experiment provides a test helper that can be used to stub experiments and assert that the expected experiments have been run.
+
+To use the test helper, include it in your test case:
+
+```ruby
+class MyTestCase < ActiveSupport::TestCase
+  include ActiveExperiment::TestHelper
+end
+```
+
+Now you can stub experiments in your tests:
+
+```ruby
+test "stubbing experiments" do
+  stub_experiment(MyExperiment, :red) do
+    # Now all MyExperiment experiments will assign the :red variant.
+  end
+
+  stub_experiment(MyExperiment, skip: true) do
+    # Now all MyExperiment experiments be skipped.
+  end
+end
+```
+
+Assertion helpers are also available:
+
+```ruby
+test "asserting experiments" do
+  # no experiments has been run
+  assert_no_experiments
+
+  MyExperiment.run(id: 1)
+
+  # 1 experiment has been run
+  assert_experiments 1
+
+  # 2 experiments expected within the block.
+  assert_experiments 2 do
+    MyExperiment.run(id: 2)
+    MyExperiment.run(id: 3)
+  end
+  
+  # assert an experiment has been run with context.
+  assert_experiment_with(MyExperiment, context: { id: 1 })
+  
+  # experiment with context, and a variant assigned expected within the block.
+  assert_experiment_with(MyExperiment, variant: :red, context: { id: 4 }) do
+    MyExperiment.set(variant: :red).run(id: 4)
+  end
+end
+```
+
 ## GlobalID support
 
 Active Experiment supports [GlobalID serialization](https://github.com/rails/globalid/) for experiment contexts. This is part of what makes it possible to utilize Active Record objects as context to consistently assign the same variant across multiple runs.
