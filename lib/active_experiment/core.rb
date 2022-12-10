@@ -56,6 +56,15 @@ module ActiveExperiment
     # These methods will be included into any Active Experiment object and
     # provide variant registration methods.
     module ClassMethods
+      # The experiment name.
+      #
+      # An underscored version of the experiment class name. If within a
+      # namespace, the namespace will be included in the name, separated by a
+      # slash (e.g. "my_namespace/my_experiment").
+      def experiment_name
+        name.underscore
+      end
+
       private
         def control(...)
           variant(:control, ...)
@@ -72,7 +81,7 @@ module ActiveExperiment
     # value used to assign the same variant over many runs.
     def initialize(context = {})
       @context = context
-      @name = self.class.name.underscore
+      @name = self.class.experiment_name
       @run_id = SecureRandom.uuid
       @run_key = run_key_hexdigest(context)
       @options = {}

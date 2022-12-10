@@ -125,7 +125,7 @@ module ActiveExperiment
       end
 
       def clear_cache(cache_key_prefix = nil)
-        cache_store.delete_matched(cache_key_prefix || name.underscore)
+        cache_store.delete_matched(cache_key_prefix || experiment_name)
       end
 
       private
