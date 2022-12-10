@@ -356,6 +356,8 @@ test "asserting experiments" do
 end
 ```
 
+RSpec support can be added by requiring `active_experiment/rspec` in the appropriate spec helper.
+
 ## GlobalID support
 
 Active Experiment supports [GlobalID serialization](https://github.com/rails/globalid/) for experiment contexts. This is part of what makes it possible to utilize Active Record objects as context to consistently assign the same variant across multiple runs.
