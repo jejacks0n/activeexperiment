@@ -124,14 +124,19 @@ module ActiveExperiment
         @default_cache_store = name_or_cache_store
       end
 
-      def use_cache_store(name_or_cache_store, *args)
-        case name_or_cache_store
-        when Symbol, String
-          self.cache_store = ActiveExperiment::Cache.lookup(name_or_cache_store, *args)
-        else
-          self.cache_store = name_or_cache_store
-        end
+      def clear_cache(cache_key_prefix = nil)
+        cache_store.delete_matched(cache_key_prefix || name.underscore)
       end
+
+      private
+        def use_cache_store(name_or_cache_store, *args)
+          case name_or_cache_store
+          when Symbol, String
+            self.cache_store = ActiveExperiment::Cache.lookup(name_or_cache_store, *args)
+          else
+            self.cache_store = name_or_cache_store
+          end
+        end
     end
 
     # The cache key prefix.

@@ -7,6 +7,7 @@ module ActiveExperiment
   module Cache
     extend ActiveSupport::Autoload
 
+    autoload :ActiveRecordCacheStore
     autoload :RedisHashCacheStore
 
     CACHE_STORE_SUFFIX = "CacheStore"

@@ -82,6 +82,17 @@ class CachingTest < ActiveSupport::TestCase
     assert_equal "blue", experiment.run
   end
 
+  test "clearing an experiments cache" do
+    experiment = SubjectExperiment.new
+    experiment.run
+
+    assert_not_nil SubjectExperiment.cache_store.read(experiment.cache_key)
+
+    SubjectExperiment.clear_cache
+
+    assert_nil SubjectExperiment.cache_store.read(experiment.cache_key)
+  end
+
   test "caching a variant for a collection of contexts" do
     SubjectExperiment.set(variant: :blue).cache_each([1, 2, 3])
 
