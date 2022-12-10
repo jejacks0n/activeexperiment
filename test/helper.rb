@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 # require "active_support/testing/strict_warnings"
+require "active_support/core_ext/kernel/reporting"
 require "minitest/mock"
 require "simplecov"
 

@@ -167,5 +167,11 @@ module ActiveExperiment
         "skipped" => skipped?
       }
     end
+
+    def to_s # :nodoc:
+      details = [@variant.inspect, @skip.inspect, (@run_key.slice(0, 16) + "..."), @context.inspect, @options.inspect]
+      string = "#<%s:%#0x @variant=%s @skip=%s @run_key=%s @context=%s, @options=%s>"
+      sprintf(string, self.class.name, object_id, *details)
+    end
   end
 end

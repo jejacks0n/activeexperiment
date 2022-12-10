@@ -59,6 +59,13 @@ module ActiveExperiment
       experiments << experiment
     end
 
+    # Returns an array of experiments that have been run.
+    #
+    # Used by several other methods to return serialized experiments.
+    def self.as_array
+      self.experiments || []
+    end
+
     # Returns a json of the experiments that have been run, with the experiment
     # name as the key, and the serialized experiment as the value. This assumes
     # that if an experiment is run multiple times, the same variant has been
@@ -68,12 +75,12 @@ module ActiveExperiment
     # When needed, the executed experiments can be accessed and/or iterated
     # directly, or the +to_json_array+ method can be used.
     def self.to_json
-      experiments.each_with_object({}) { |e, hash| hash[e.name] = e.serialize }.to_json
+      as_array.each_with_object({}) { |e, hash| hash[e.name] = e.serialize }.to_json
     end
 
     # Returns an array of experiments that have been run.
     def self.to_json_array
-      experiments.map(&:serialize).to_json
+      as_array.map(&:serialize).to_json
     end
   end
 end
