@@ -16,7 +16,7 @@ class CachingTest < ActiveSupport::TestCase
 
   test "using an active support cache store on an experiment" do
     MemoryCacheStoreExperiment = Class.new(SubjectExperiment) do
-      use_cache_store :memory_store
+      use_cache_store :memory_store, namespace: "_exp_"
     end
 
     assert_instance_of ActiveSupport::Cache::MemoryStore,
@@ -25,7 +25,7 @@ class CachingTest < ActiveSupport::TestCase
 
   test "using the redis hash cache store on an experiment" do
     RedisHashCacheStoreExperiment = Class.new(SubjectExperiment) do
-      use_cache_store :redis_hash
+      use_cache_store :redis_hash, namespace: "_exp_"
     end
 
     assert_instance_of ActiveExperiment::Cache::RedisHashCacheStore,
@@ -35,7 +35,7 @@ class CachingTest < ActiveSupport::TestCase
   test "using a custom cache store class on an experiment" do
     CustomClassStore = Class.new(ActiveSupport::Cache::Store)
     CustomClassStoreExperiment = Class.new(SubjectExperiment) do
-      use_cache_store CustomClassStore.new
+      use_cache_store CustomClassStore.new(namespace: "_exp_")
     end
 
     assert_instance_of CustomClassStore,

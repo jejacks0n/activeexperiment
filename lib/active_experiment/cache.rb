@@ -16,10 +16,10 @@ module ActiveExperiment
     # Allows looking up a cache store by name.
     #
     # Raises an +ArgumentError+ if the cache store isn't found.
-    def self.lookup(name, *args)
-      const_get("#{name.to_s.camelize}#{CACHE_STORE_SUFFIX}").new(*args)
+    def self.lookup(name, *args, **options)
+      const_get("#{name.to_s.camelize}#{CACHE_STORE_SUFFIX}").new(*args, **options)
     rescue NameError
-      store = ActiveSupport::Cache.lookup_store(name, *args)
+      store = ActiveSupport::Cache.lookup_store(name, *args, **options)
       raise ArgumentError, "No cache store found for #{name.inspect}" unless store
 
       store

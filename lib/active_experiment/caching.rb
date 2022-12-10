@@ -129,10 +129,10 @@ module ActiveExperiment
       end
 
       private
-        def use_cache_store(name_or_cache_store, *args)
+        def use_cache_store(name_or_cache_store, *args, **kws)
           case name_or_cache_store
           when Symbol, String
-            self.cache_store = ActiveExperiment::Cache.lookup(name_or_cache_store, *args)
+            self.cache_store = ActiveExperiment::Cache.lookup(name_or_cache_store, *args, **kws)
           else
             self.cache_store = name_or_cache_store
           end
