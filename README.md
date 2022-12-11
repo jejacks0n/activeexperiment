@@ -328,7 +328,7 @@ test "stubbing experiments" do
   end
 
   stub_experiment(MyExperiment, skip: true) do
-    # Now all MyExperiment experiments be skipped.
+    # Now all MyExperiment experiments will be skipped.
   end
 end
 ```
@@ -337,24 +337,24 @@ Assertion helpers are also available:
 
 ```ruby
 test "asserting experiments" do
-  # no experiments has been run
+  # Assert that no experiments have been run.
   assert_no_experiments
 
   MyExperiment.run(id: 1)
 
-  # 1 experiment has been run
+  # Assert that 1 experiment has been run.
   assert_experiments 1
 
-  # 2 experiments expected within the block.
+  # Assert that within the block, 2 experiments will be run.
   assert_experiments 2 do
     MyExperiment.run(id: 2)
     MyExperiment.run(id: 3)
   end
   
-  # assert an experiment has been run with context.
+  # Assert an experiment has been run with a given context.
   assert_experiment_with(MyExperiment, context: { id: 1 })
   
-  # experiment with context, and a variant assigned expected within the block.
+  # Assert that within the block, a matching experiment will be run.
   assert_experiment_with(MyExperiment, variant: :red, context: { id: 4 }) do
     MyExperiment.set(variant: :red).run(id: 4)
   end
