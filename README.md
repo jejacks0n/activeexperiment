@@ -1,3 +1,8 @@
+[![Gem Version](https://badge.fury.io/rb/activeexperiment.svg)](https://badge.fury.io/rb/activeexperiment)
+[![Maintainability](https://api.codeclimate.com/v1/badges/551c00c66f8558c7a01b/maintainability)](https://codeclimate.com/github/jejacks0n/active_experiment/maintainability)
+[![Test Coverage](https://api.codeclimate.com/v1/badges/551c00c66f8558c7a01b/test_coverage)](https://codeclimate.com/github/jejacks0n/active_experiment/test_coverage)
+[![License](https://img.shields.io/badge/license-MIT-brightgreen.svg)](https://opensource.org/licenses/MIT)
+
 # Active Experiment – Decide what to do next
 
 Active Experiment is a framework for defining and running experiments. It supports using a variety of rollout and reporting strategies and/or services.
