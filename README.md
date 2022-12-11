@@ -63,7 +63,7 @@ gem install activeexperiment
 
 Source code can be downloaded as part of the project on GitHub:
 
-* https://github.com/jejacks0n/activeexperiment
+* https://github.com/jejacks0n/active_experiment
 
 ## Advanced Experimentation
 
