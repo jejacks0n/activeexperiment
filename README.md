@@ -170,7 +170,7 @@ class MyExperiment < ActiveExperiment::Base
   variant(:blue) { "blue" }
 
   # Using a custom rollout with options.
-  rollout :feature_flag, flag_name: "my_feature_flag"
+  use_rollout :feature_flag, flag_name: "my_feature_flag"
 end
 ```
 
