@@ -65,6 +65,10 @@ Source code can be downloaded as part of the project on GitHub:
 
 * https://github.com/jejacks0n/active_experiment
 
+Adapters can be added to integrate with various services:
+
+- [Unleash adapter](https://github.com/jejacks0n/activeexperiment-unleash) 
+
 ## Advanced Experimentation
 
 This area provides a high level overview of the tools that more complex experiments can benefit from.
