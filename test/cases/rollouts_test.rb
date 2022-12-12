@@ -16,9 +16,17 @@ class RolloutsTest < ActiveSupport::TestCase
     assert_equal "AutoloadRollout", ActiveExperiment::Rollouts.lookup(:autoload).name
   end
 
+  test "registering a rollout with the class method" do
+    BarRollout = Class.new(ActiveExperiment::Rollouts::BaseRollout) do
+      register_as :bar
+    end
+
+    assert_equal BarRollout, ActiveExperiment::Rollouts.lookup(:bar)
+  end
+
   test "trying to register a rollout with an unknown type" do
     error = assert_raises(ArgumentError) do
-      ActiveExperiment::Rollouts.register(:foo, :bar)
+      ActiveExperiment::Rollouts.register(:foo, :symbol)
     end
 
     assert_equal "Provide a class to register, or string for autoloading", error.message

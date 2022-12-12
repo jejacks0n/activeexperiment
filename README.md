@@ -150,6 +150,8 @@ Project specific rollouts can be defined and registered too. To illustrate, here
 
 ```ruby
 class FeatureFlagRollout < ActiveExperiment::Rollouts::BaseRollout
+  register_as :feature_flag
+
   def skipped_for(experiment)
     !Feature.enabled?(@rollout_options[:flag_name] || experiment.name)
   end
@@ -158,8 +160,6 @@ class FeatureFlagRollout < ActiveExperiment::Rollouts::BaseRollout
     experiment.variant_names.sample
   end
 end
-
-ActiveExperiment::Rollouts.register(:feature_flag, FeatureRollout)
 ```
 
 This rollout can now be used the same way the built-in rollouts are:
@@ -211,7 +211,9 @@ Some simple reporting strategies might simply be added to `after_run` callbacks,
 A subscriber can be used to listen for experiment events and report them to a service. For example, here's a subscriber that reports to a fictional analytics service:
 
 ```ruby
-class MyAnalyticsSubscriber
+class MyAnalyticsSubscriber < ActiveSupport::Subscriber
+  attach_to :active_experiment
+
   def process_run(event)
     experiment = event.payload[:experiment]
     return if experiment.skipped?
@@ -222,8 +224,6 @@ class MyAnalyticsSubscriber
     )
   end
 end
-
-MyAnalyticsSubscriber.attach_to(:active_experiment)
 ```
 
 The following Active Experiment events are available for subscribers:
@@ -271,7 +271,7 @@ end
 <summary>Expand ERB example</summary>
 
 ```erb
-<%== MyExperiment.set(capture: self).run do |experiment| %>
+<%== MyExperiment.set(capture: self).run(current_user) do |experiment| %>
   <div class="container">
     <%= experiment.on(:red) do %>
       <button class="red-pill">Red</button>
@@ -283,6 +283,19 @@ end
 <% end %>
 ```
 </details>
+
+If you don't need to capture the experiment, simply run like you would anywhere else:
+
+```erb
+<% MyExperiment.run(current_user) do |experiment| %>
+  <% experiment.on(:red) do %>
+    <button class="red-pill">Red</button>
+  <% end %>
+  <% experiment.on(:blue) do %>
+    <button class="blue-pill">Blue</button>
+  <% end %>
+<% end %>
+```
 
 ## Client Side Experimentation
 
@@ -302,7 +315,7 @@ In the layout, the experiment data can be rendered as JSON for instance:
 Or each experiment can be iterated over and rendered individually:
 
 ```erb
-<% ActiveExperiment::Executed.experiments.each do |experiment| %>
+<% ActiveExperiment::Executed.as_array.each do |experiment| %>
   <meta name="<%= experiment.name %>" content="<%== experiment.serialize.to_json %>">
 <% end %>
 ```

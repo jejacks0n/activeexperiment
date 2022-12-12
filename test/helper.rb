@@ -4,9 +4,7 @@
 require "active_support/core_ext/kernel/reporting"
 require "minitest/mock"
 require "simplecov"
-# require "simplecov_json_formatter"
 
-# SimpleCov.formatter = SimpleCov::Formatter::JSONFormatter if ENV["CC_TEST_REPORTER_ID"]
 SimpleCov.start do
   add_filter "test/"
   add_filter "lib/active_experiment/version.rb"

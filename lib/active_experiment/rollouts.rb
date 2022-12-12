@@ -106,6 +106,11 @@ module ActiveExperiment
     # will assign the first defined variant unless the provided methods are
     # overridden.
     class BaseRollout
+      # Convenience method to register the rollout with Active Experiment.
+      def self.register_as(name)
+        Rollouts.register(name, self)
+      end
+
       def initialize(experiment_class, *args, **options, &block) # :nodoc:
         @experiment_class = experiment_class
         @rollout_args = args
