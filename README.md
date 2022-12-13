@@ -13,10 +13,10 @@ Experimentation is complex. There are a lot of different ways to run experiments
 
 ## Usage
 
-Start by defining an experiment class and adding some variants to it:
+Define your experiments using easily testable classes:
 
 ```ruby
-class MyExperiment < ApplicationExperiment
+class MyExperiment < ActiveExperiment::Base
   variant(:red) { "red" }
   variant(:blue) { "blue" }
 end
@@ -28,13 +28,13 @@ This experiment can be generated using the Rails generator:
 rails generate experiment my_experiment red blue
 ```
 
-Run the experiment anywhere in the application by providing it a context:
+Run the experiment with a context, like the current user, or the post being rendered:
 
 ```ruby
 MyExperiment.run(current_user) # => "red" or "blue"
 ```
 
-The experiment can also be run using local scope and helpers to override the default variants:
+Optionally override the defaults using local scope and helpers:
 
 ```ruby
 MyExperiment.run(current_user) do |experiment|
@@ -76,7 +76,7 @@ This area provides a high level overview of the tools that more complex experime
 For example, some experiments need to define a default variant (also known as a _control_) that will be assigned if the experiment is skipped:
 
 ```ruby
-class MyExperiment < ApplicationExperiment
+class MyExperiment < ActiveExperiment::Base
   variant(:red) { "red" }
   variant(:blue) { "blue" }
 
@@ -89,7 +89,7 @@ end
 Callbacks can be used to hook into the lifecycle when experiments are run, and can be targeted to when a specific variant has been assigned:
 
 ```ruby
-class MyExperiment < ApplicationExperiment
+class MyExperiment < ActiveExperiment::Base
   control { "default" }
   variant(:red) { "red" }
   variant(:blue) { "blue" }
@@ -109,7 +109,7 @@ end
 Segment rules can be used to assign specific variants for certain cases:
 
 ```ruby
-class MyExperiment < ApplicationExperiment
+class MyExperiment < ActiveExperiment::Base
   control { "default" }
   variant(:red) { "red" }
   variant(:blue) { "blue" }
@@ -138,7 +138,7 @@ A rollout can implement any number of different strategies, interact with servic
 Here's an example of using the default percent rollout with custom distribution rules:
 
 ```ruby
-class MyExperiment < ApplicationExperiment
+class MyExperiment < ActiveExperiment::Base
   variant(:red) { "red" }
   variant(:blue) { "blue" }
   variant(:green) { "green" }
