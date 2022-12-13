@@ -2,7 +2,7 @@
 
 require "helper"
 
-class TestHelperTest < ActiveSupport::TestCase
+class TestHelpersTest < ActiveSupport::TestCase
   include ActiveExperiment::TestHelper
 
   test "stub rollout with no overrides" do
@@ -138,7 +138,7 @@ class TestHelperTest < ActiveSupport::TestCase
     end
 
     assert_equal(<<~MESSAGE.strip, error.message)
-      No matching run found for TestHelperTest::SubjectExperiment
+      No matching run found for TestHelpersTest::SubjectExperiment
 
       No experiment were run
     MESSAGE
@@ -160,11 +160,11 @@ class TestHelperTest < ActiveSupport::TestCase
     end
 
     assert_equal(<<~MESSAGE.strip, error.message)
-      No matching run found for TestHelperTest::SubjectExperiment with {:context=>{:id=>3}}
+      No matching run found for TestHelpersTest::SubjectExperiment with {:context=>{:id=>3}}
 
       Potential matches:
-        #<TestHelperTest::SubjectExperiment:0x3e8 @variant=:red @skip=false @run_key=f2005125dbf92266... @context={:id=>1}, @options={}>
-        #<TestHelperTest::SubjectExperiment:0x3e8 @variant=:red @skip=false @run_key=46284b30327fa13f... @context={:id=>2}, @options={}>
+        #<TestHelpersTest::SubjectExperiment:0x3e8 @variant=:red @skip=false @run_key=9b1551c89e75d943... @context={:id=>1}, @options={}>
+        #<TestHelpersTest::SubjectExperiment:0x3e8 @variant=:red @skip=false @run_key=4a2afe7b0b474d29... @context={:id=>2}, @options={}>
     MESSAGE
   end
 
@@ -181,10 +181,10 @@ class TestHelperTest < ActiveSupport::TestCase
     end
 
     assert_equal(<<~MESSAGE.strip, error.message)
-      No matching run found for TestHelperTest::SubjectExperiment with {:options=>{:foo=>"foo"}}
+      No matching run found for TestHelpersTest::SubjectExperiment with {:options=>{:foo=>"foo"}}
 
       Potential matches:
-        #<TestHelperTest::SubjectExperiment:0x3e8 @variant=:blue @skip=false @run_key=5fdc715eb6b9b8e8... @context={}, @options={:foo=>"bar"}>
+        #<TestHelpersTest::SubjectExperiment:0x3e8 @variant=:blue @skip=false @run_key=d2bcee5abbe0b418... @context={}, @options={:foo=>"bar"}>
     MESSAGE
   end
 
@@ -202,10 +202,10 @@ class TestHelperTest < ActiveSupport::TestCase
     end
 
     assert_equal(<<~MESSAGE.strip, error.message)
-      No matching run found for TestHelperTest::SubjectExperiment with {:context=>{:id=>1}, :options=>{:foo=>\"bar\"}, :variant=>:blue}
+      No matching run found for TestHelpersTest::SubjectExperiment with {:context=>{:id=>1}, :options=>{:foo=>\"bar\"}, :variant=>:blue}
 
       Potential matches:
-        #<TestHelperTest::SubjectExperiment:0x3e8 @variant=:blue @skip=false @run_key=46284b30327fa13f... @context={:id=>2}, @options={:foo=>\"bar\"}>
+        #<TestHelpersTest::SubjectExperiment:0x3e8 @variant=:blue @skip=false @run_key=4a2afe7b0b474d29... @context={:id=>2}, @options={:foo=>\"bar\"}>
     MESSAGE
   end
 
@@ -216,10 +216,10 @@ class TestHelperTest < ActiveSupport::TestCase
     end
 
     assert_equal(<<~MESSAGE.strip, error.message)
-      No matching run found for TestHelperTest::SubjectExperiment
+      No matching run found for TestHelpersTest::SubjectExperiment
 
-      No TestHelperTest::SubjectExperiment experiments were run, experiments run:
-        TestHelperTest::OtherExperiment
+      No TestHelpersTest::SubjectExperiment experiments were run, experiments run:
+        TestHelpersTest::OtherExperiment
     MESSAGE
   end
 

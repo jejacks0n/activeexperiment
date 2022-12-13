@@ -3,9 +3,6 @@ defaults: &defaults
   working_directory: ~/repo
   docker:
     - image: cimg/ruby:3.0
-      environment:
-        CC_TEST_REPORTER_ID: 5f7c595e7d7a9b7e97a0d4ca8a68a18164721a70ea370238d5cc2e632d51c121
-        RAILS_ENV: test
     - image: cimg/redis:7.0
 jobs:
   build:
