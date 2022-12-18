@@ -4,8 +4,8 @@
 
 [![Gem Version](https://badge.fury.io/rb/activeexperiment.svg)](https://badge.fury.io/rb/activeexperiment)
 [![License](https://img.shields.io/badge/license-MIT-brightgreen.svg)](https://opensource.org/licenses/MIT)
-[![Maintainability](https://api.codeclimate.com/v1/badges/551c00c66f8558c7a01b/maintainability)](https://codeclimate.com/github/jejacks0n/activeexperiment/maintainability)
-[![Test Coverage](https://api.codeclimate.com/v1/badges/551c00c66f8558c7a01b/test_coverage)](https://codeclimate.com/github/jejacks0n/activeexperiment/test_coverage)
+[![Maintainability](https://img.shields.io/codeclimate/coverage-letter/jejacks0n/activeexperiment.svg?label=maintainability)](https://codeclimate.com/github/jejacks0n/activeexperiment/maintainability)
+[![Test Coverage](https://img.shields.io/codeclimate/coverage/jejacks0n/activeexperiment.svg?label=test%20coverage)](https://codeclimate.com/github/jejacks0n/activeexperiment/test_coverage)
 
 Active Experiment is a framework for defining and running experiments. It supports using a variety of rollout and reporting strategies and/or services.
 
