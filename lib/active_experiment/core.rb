@@ -156,15 +156,15 @@ module ActiveExperiment
     # experiment.
     #
     # Calling this before the variant has been assigned or resolved will result
-    # in the variant being empty. Generally, this should be called after the
+    # in the variant being nil. Generally, this should be called after the
     # experiment has been run.
     def serialize
       {
-        "experiment" => name,
-        "run_id" => run_id,
-        "run_key" => run_key,
-        "variant" => variant.to_s,
-        "skipped" => skipped?
+        experiment: name,
+        run_id: run_id,
+        run_key: run_key,
+        variant: variant,
+        skipped: skipped?
       }
     end
 
