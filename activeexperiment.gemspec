@@ -20,7 +20,7 @@ Gem::Specification.new do |s|
 
   s.author   = "Jeremy Jackson"
   s.email    = "jejacks0n@gmail.com"
-  s.homepage = "https://github.com/jejacks0n/active_experiment"
+  s.homepage = "https://github.com/jejacks0n/activeexperiment"
 
   s.files        = Dir["CHANGELOG.md", "MIT-LICENSE", "README.md", "lib/**/*"]
   s.require_path = "lib"

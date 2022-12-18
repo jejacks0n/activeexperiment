@@ -2,8 +2,8 @@
 
 [![Gem Version](https://badge.fury.io/rb/activeexperiment.svg)](https://badge.fury.io/rb/activeexperiment)
 [![License](https://img.shields.io/badge/license-MIT-brightgreen.svg)](https://opensource.org/licenses/MIT)
-[![Maintainability](https://api.codeclimate.com/v1/badges/551c00c66f8558c7a01b/maintainability)](https://codeclimate.com/github/jejacks0n/active_experiment/maintainability)
-[![Test Coverage](https://api.codeclimate.com/v1/badges/551c00c66f8558c7a01b/test_coverage)](https://codeclimate.com/github/jejacks0n/active_experiment/test_coverage)
+[![Maintainability](https://api.codeclimate.com/v1/badges/551c00c66f8558c7a01b/maintainability)](https://codeclimate.com/github/jejacks0n/activeexperiment/maintainability)
+[![Test Coverage](https://api.codeclimate.com/v1/badges/551c00c66f8558c7a01b/test_coverage)](https://codeclimate.com/github/jejacks0n/activeexperiment/test_coverage)
 
 Active Experiment is a framework for defining and running experiments. It supports using a variety of rollout and reporting strategies and/or services.
 
@@ -63,13 +63,13 @@ gem install activeexperiment
 
 Source code can be downloaded as part of the project on GitHub:
 
-* https://github.com/jejacks0n/active_experiment
+* https://github.com/jejacks0n/activeexperiment
 
 Adapters can be added to integrate with various services:
 
 - [Unleash adapter](https://github.com/jejacks0n/activeexperiment-unleash) 
 
-## Advanced Experimentation
+## Advanced experimentation
 
 This area provides a high level overview of the tools that more complex experiments can benefit from.
 
@@ -148,7 +148,7 @@ class MyExperiment < ActiveExperiment::Base
 end
 ```
 
-### Defining Custom Rollouts
+### Defining custom rollouts
 
 Project specific rollouts can be defined and registered too. To illustrate, here's a custom rollout that inherits from the base rollout, uses a fictional feature flag library, and assigns a random variant.
 
@@ -241,7 +241,7 @@ The following Active Experiment events are available for subscribers:
 
 In each of these events, the experiment instance is available in the `event.payload` hash.
 
-## Experiments in Views
+## Experiments in views
 
 Experiments can be used in views, just like in any other part of your application. Sometimes though, you might want to render markup inside your run block too, and to do this, you'll need to "capture" the experiment.
 
@@ -301,7 +301,7 @@ If you don't need to capture the experiment, simply run like you would anywhere 
 <% end %>
 ```
 
-## Client Side Experimentation
+## Client side experimentation
 
 While Active Experiment doesn't include any specific tooling for client side experimentation at this time, it does provide the ability to surface experiments in the client layer.
 
