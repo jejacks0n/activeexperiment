@@ -11,6 +11,7 @@ AllCops:
   DisabledByDefault: true
   SuggestExtensions: false
   Exclude:
+    - 'bin/**/*'
     - '**/tmp/**/*'
     - '**/templates/**/*'
     - '**/vendor/**/*'
