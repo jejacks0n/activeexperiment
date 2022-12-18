@@ -1,5 +1,7 @@
 # Active Experiment – Decide what to do next
 
+<img alt="Active Experiment" width="150" height="183" src="https://user-images.githubusercontent.com/13765/208318101-b48c9493-15ed-4a99-b42f-b20720dd7c77.png" align="right" hspace="20">
+
 [![Gem Version](https://badge.fury.io/rb/activeexperiment.svg)](https://badge.fury.io/rb/activeexperiment)
 [![License](https://img.shields.io/badge/license-MIT-brightgreen.svg)](https://opensource.org/licenses/MIT)
 [![Maintainability](https://api.codeclimate.com/v1/badges/551c00c66f8558c7a01b/maintainability)](https://codeclimate.com/github/jejacks0n/activeexperiment/maintainability)
@@ -383,6 +385,13 @@ RSpec support can be added by requiring `active_experiment/rspec` in the appropr
 ## GlobalID support
 
 Active Experiment supports [GlobalID serialization](https://github.com/rails/globalid/) for experiment contexts. This is part of what makes it possible to utilize Active Record objects as context to consistently assign the same variant across multiple runs.
+
+## Similar and noteworthy projects
+
+- [Vanity](https://vanity.labnotes.org/) - Experiment Driven Development framework for Rails.
+- [Scientist](https://github.com/github/scientist) - A Ruby library for carefully refactoring critical paths.
+- [Gitlab::Experiment](https://gitlab.com/gitlab-org/ruby/gems/gitlab-experiment) - A framework for running experiments, by GitLab.
+- [Split](https://github.com/splitrb/split) - The Rack Based A/B testing framework.
 
 ## License
 
