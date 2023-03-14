@@ -66,12 +66,12 @@ module ActiveExperiment
       end
 
       private
-        def control(...)
-          variant(:control, ...)
+        def control(*filters, **options, &block)
+          variant(:control, *filters, **options, &block)
         end
 
-        def variant(name, ...)
-          register_variant_callback(name, ...)
+        def variant(name, *filters, **options, &block)
+          register_variant_callback(name, *filters, **options, &block)
         end
     end
 
