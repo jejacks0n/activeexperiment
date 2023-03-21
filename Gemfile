@@ -5,7 +5,7 @@ git_source(:github) { |repo| "https://github.com/#{repo}.git" }
 
 gemspec
 
-gem "rails"
+gem "rails", "~> 5.2.5"
 gem "puma"
 
 gem "minitest"

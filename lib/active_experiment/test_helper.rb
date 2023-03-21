@@ -225,7 +225,7 @@ module ActiveExperiment
     # stub out the rollout of an experiment in a test. It can also be inherited
     # and customized.
     class MockRollout < Rollouts::BaseRollout
-      def initialize(...)
+      def initialize(experiment_class, *args, **options, &block)
         @assigned = 0
         super
       end

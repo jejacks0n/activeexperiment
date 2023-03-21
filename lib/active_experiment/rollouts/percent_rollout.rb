@@ -35,7 +35,7 @@ module ActiveExperiment
     #   ActiveExperiment::Base.default_rollout = :percent
     #   Rails.application.config.active_experiment.default_rollout = :percent
     class PercentRollout < BaseRollout
-      def initialize(experiment_class, ...) # :nodoc:
+      def initialize(experiment_class, *args, **options, &block) # :nodoc:
         super
 
         validate!(experiment_class)
