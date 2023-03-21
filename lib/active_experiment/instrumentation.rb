@@ -26,6 +26,9 @@ module ActiveExperiment
         return ActiveSupport::Notifications.instrument(operation, payload) unless block.present?
 
         ActiveSupport::Notifications.instrument(operation, payload) do |event_payload|
+          @variant = nil unless defined?(@variant)
+          @halted_callback = nil unless defined?(@halted_callback)
+
           variant = @variant
           results = block.call
 
