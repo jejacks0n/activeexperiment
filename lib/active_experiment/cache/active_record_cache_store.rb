@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require "monitor"
 require "active_record"
 
 module ActiveExperiment
@@ -28,10 +27,29 @@ module ActiveExperiment
     #
     #   create_table :active_experiment_cache_entries, id: false do |t|
     #     t.string :key, null: false
-    #     t.string :value, null: false
+    #     t.binary :value, null: false
     #   end
     #
     #   add_index :active_experiment_cache_entries, :key, unique: true
+    #
+    # == Database Support
+    #
+    # The value column is binary because that's what entries serialize to -- a
+    # payload that leads with a null byte and isn't necessarily valid in the
+    # connection's encoding. PostgreSQL rejects that outright in a text or
+    # varchar column, and MySQL will too unless the column is binary.
+    #
+    # A +t.string :value+ column still works on SQLite, which doesn't enforce
+    # column types, so tables created before this was documented don't need
+    # migrating. Anything else wants +t.binary+.
+    #
+    # The statements are written with +?+ placeholders and quoted through the
+    # connection, so they don't depend on a particular adapter's bind syntax.
+    #
+    # SQLite and PostgreSQL are both covered by the test suite, the latter
+    # against a real server in CI. MySQL should work on the same basis -- it
+    # takes the same +x'..'+ binary literal SQLite does -- but nothing verifies
+    # that, so treat it as untested.
     #
     # Once a table is created, the cache store can be used in an experiment:
     #
@@ -44,15 +62,10 @@ module ActiveExperiment
     class ActiveRecordCacheStore < ActiveSupport::Cache::Store
       DEFAULT_TABLE_NAME = "active_experiment_cache_entries"
 
-      def initialize(options = nil)
-        super
-        @connection = ActiveRecord::Base.connection
-      end
-
       def length(options = nil)
         options = merged_options(options)
-        execute(<<~SQL).first["COUNT(key)"]
-          SELECT COUNT(key) FROM #{table_name(options)}
+        execute(<<~SQL).first["count"]
+          SELECT COUNT(key) AS count FROM #{table_name(options)}
         SQL
       end
 
@@ -66,24 +79,24 @@ module ActiveExperiment
       def delete_matched(matcher, options = nil)
         options = merged_options(options)
         execute(<<~SQL, key_matcher(matcher, options))
-          DELETE FROM #{table_name(options)} WHERE key LIKE $1
+          DELETE FROM #{table_name(options)} WHERE key LIKE ?
         SQL
       end
 
       private
         def read_entry(key, **options)
-          results = execute(<<~SQL, key)&.first.try(:[], "value")
-            SELECT value FROM #{table_name(options)} WHERE key = $1
+          result = execute(<<~SQL, key)
+            SELECT value FROM #{table_name(options)} WHERE key = ?
           SQL
 
-          deserialize_entry(results)
+          deserialize_entry(column_value(result, "value"))
         end
 
         def write_entry(key, entry, **options)
           return false if options[:unless_exist] && exist?(key, options)
 
-          execute(<<~SQL, key, serialize_entry(entry, **options))
-            INSERT INTO #{table_name(options)} (key, value) VALUES ($1, $2)
+          execute(<<~SQL, key, binary(serialize_entry(entry, **options)))
+            INSERT INTO #{table_name(options)} (key, value) VALUES (?, ?)
           SQL
 
           true
@@ -91,7 +104,7 @@ module ActiveExperiment
 
         def delete_entry(key, **options)
           execute(<<~SQL, key)
-            DELETE FROM #{table_name(options)} WHERE key = $1
+            DELETE FROM #{table_name(options)} WHERE key = ?
           SQL
 
           true
@@ -108,8 +121,24 @@ module ActiveExperiment
           namespace_key(source, options)
         end
 
-        def execute(sql, *args, prepare: true, **kws, &block)
-          @connection.exec_query(sql, "SQL", args, prepare: prepare, **kws, &block)
+        def column_value(result, column)
+          row = result&.first
+          return if row.nil?
+
+          type = result.column_types[column]
+          type ? type.deserialize(row[column]) : row[column]
+        end
+
+        def binary(payload)
+          ActiveRecord::Type::Binary::Data.new(payload)
+        end
+
+        def execute(sql, *binds)
+          sql = ActiveRecord::Base.sanitize_sql_array([sql, *binds]) if binds.any?
+
+          ActiveRecord::Base.connection_pool.with_connection do |connection|
+            connection.exec_query(sql, "ActiveExperiment::Cache")
+          end
         end
     end
   end

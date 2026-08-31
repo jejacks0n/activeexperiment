@@ -25,4 +25,10 @@ group :test do
   gem "redis"
   gem "sqlite3", "~> 2.1"
   gem "bootsnap"
+
+  # Only for the postgres run of the Active Record cache store tests. Building
+  # it needs libpq, so it's opt in rather than a requirement for contributing.
+  install_if -> { ENV["CI"] || ENV["AE_POSTGRES_URL"] } do
+    gem "pg"
+  end
 end
