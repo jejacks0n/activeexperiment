@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "cgi/escape"
 require "global_id"
 require "active_support"
 require "active_support/rails"

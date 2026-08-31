@@ -160,11 +160,11 @@ class TestHelpersTest < ActiveSupport::TestCase
     end
 
     assert_equal(<<~MESSAGE.strip, error.message)
-      No matching run found for TestHelpersTest::SubjectExperiment with {:context=>{:id=>3}}
+      No matching run found for TestHelpersTest::SubjectExperiment with #{{ context: { id: 3 } }.inspect}
 
       Potential matches:
-        #<TestHelpersTest::SubjectExperiment:0x3e8 @variant=:red @skip=false @run_key=9b1551c89e75d943... @context={:id=>1}, @options={}>
-        #<TestHelpersTest::SubjectExperiment:0x3e8 @variant=:red @skip=false @run_key=4a2afe7b0b474d29... @context={:id=>2}, @options={}>
+        #<TestHelpersTest::SubjectExperiment:0x3e8 @variant=:red @skip=false @run_key=9b1551c89e75d943... @context=#{{ id: 1 }.inspect}, @options={}>
+        #<TestHelpersTest::SubjectExperiment:0x3e8 @variant=:red @skip=false @run_key=4a2afe7b0b474d29... @context=#{{ id: 2 }.inspect}, @options={}>
     MESSAGE
   end
 
@@ -181,10 +181,10 @@ class TestHelpersTest < ActiveSupport::TestCase
     end
 
     assert_equal(<<~MESSAGE.strip, error.message)
-      No matching run found for TestHelpersTest::SubjectExperiment with {:options=>{:foo=>"foo"}}
+      No matching run found for TestHelpersTest::SubjectExperiment with #{{ options: { foo: "foo" } }.inspect}
 
       Potential matches:
-        #<TestHelpersTest::SubjectExperiment:0x3e8 @variant=:blue @skip=false @run_key=d2bcee5abbe0b418... @context={}, @options={:foo=>"bar"}>
+        #<TestHelpersTest::SubjectExperiment:0x3e8 @variant=:blue @skip=false @run_key=d2bcee5abbe0b418... @context={}, @options=#{{ foo: "bar" }.inspect}>
     MESSAGE
   end
 
@@ -202,10 +202,10 @@ class TestHelpersTest < ActiveSupport::TestCase
     end
 
     assert_equal(<<~MESSAGE.strip, error.message)
-      No matching run found for TestHelpersTest::SubjectExperiment with {:context=>{:id=>1}, :options=>{:foo=>\"bar\"}, :variant=>:blue}
+      No matching run found for TestHelpersTest::SubjectExperiment with #{{ context: { id: 1 }, options: { foo: "bar" }, variant: :blue }.inspect}
 
       Potential matches:
-        #<TestHelpersTest::SubjectExperiment:0x3e8 @variant=:blue @skip=false @run_key=4a2afe7b0b474d29... @context={:id=>2}, @options={:foo=>\"bar\"}>
+        #<TestHelpersTest::SubjectExperiment:0x3e8 @variant=:blue @skip=false @run_key=4a2afe7b0b474d29... @context=#{{ id: 2 }.inspect}, @options=#{{ foo: "bar" }.inspect}>
     MESSAGE
   end
 

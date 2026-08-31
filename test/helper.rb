@@ -6,9 +6,9 @@ require "minitest/mock"
 require "simplecov"
 
 SimpleCov.start do
-  add_filter "test/"
-  add_filter "lib/active_experiment/version.rb"
-  add_filter "lib/active_experiment/gem_version.rb"
+  skip "test/"
+  skip "lib/active_experiment/version.rb"
+  skip "lib/active_experiment/gem_version.rb"
 end
 
 require "active_experiment"

@@ -6,13 +6,13 @@ class ExecutionTest < ActiveSupport::TestCase
   test "setting options at the class level" do
     result = SubjectExperiment.set(variant: :blue, foo: :bar).run
 
-    assert_equal "blue {:foo=>:bar}", result
+    assert_equal "blue #{{ foo: :bar }.inspect}", result
   end
 
   test "setting options on an instance" do
     result = SubjectExperiment.new.set(variant: :blue, foo: :bar).run
 
-    assert_equal "blue {:foo=>:bar}", result
+    assert_equal "blue #{{ foo: :bar }.inspect}", result
   end
 
   test "setting options within the run block" do
@@ -20,7 +20,7 @@ class ExecutionTest < ActiveSupport::TestCase
       experiment.set(variant: :blue, foo: :bar)
     end
 
-    assert_equal "blue {:foo=>:bar}", result
+    assert_equal "blue #{{ foo: :bar }.inspect}", result
   end
 
   test "overriding multiple variants" do

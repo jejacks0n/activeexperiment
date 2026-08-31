@@ -9,6 +9,7 @@ gem "rails"
 gem "puma"
 
 gem "minitest"
+gem "minitest-mock"
 gem "simplecov"
 gem "rdoc"
 
@@ -21,7 +22,7 @@ gem "rubocop-rails", require: false
 group :test do
   # for integration test dummy app
   gem "redis"
-  gem "sqlite3", "~> 1.4"
+  gem "sqlite3", "~> 2.1"
   gem "bootsnap"
   gem "sprockets-rails"
 end

@@ -40,7 +40,7 @@ class LogSubscriberTest < ActiveSupport::TestCase
     capture_logger do |logger|
       LogContextExperiment.run(foo: "Foo", bar: [1, 2, 3], baz: { a: 1, b: 2, c: 3 })
 
-      context = %{with context: {:foo=>"Foo", :bar=>[1, 2, 3], :baz=>{:a=>1, :b=>2, :c=>3}}}
+      context = "with context: #{{ foo: "Foo", bar: [1, 2, 3], baz: { a: 1, b: 2, c: 3 } }.inspect}"
       assert_equal <<~MESSAGES, logger.messages
         LogContextExperiment[key]  Running log_subscriber_test/log_context_experiment (Run ID: 1fbde0db) #{context}
         LogContextExperiment[key]  Completed running red variant (Duration: 0.0ms | Allocations: 0)
@@ -142,12 +142,10 @@ class LogSubscriberTest < ActiveSupport::TestCase
     capture_logger do |logger|
       NoCallbackExperiment.run(raise_in_start_run: true)
 
-      # rubocop:disable Layout/TrailingWhitespace
       assert_equal <<~MESSAGES, logger.messages
-        Could not log \"start_experiment.active_experiment\" event. RuntimeError: start_experiment 
+        Could not log \"start_experiment.active_experiment\" event. RuntimeError: start_experiment []
         NoCallbackExperiment[key]  Completed running red variant (Duration: 0.0ms | Allocations: 0)
       MESSAGES
-      # rubocop:enable Layout/TrailingWhitespace
     end
   end
 

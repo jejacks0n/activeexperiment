@@ -37,7 +37,9 @@ module LogHelpers
   class TestLogSubscriber < ActiveExperiment::LogSubscriber
     private
       def log_exception(name, exception)
-        super(name, RuntimeError.new(exception.message))
+        # Give the stand-in an empty backtrace: the error reporter fills in a
+        # machine specific one otherwise, and it gets logged with the message.
+        super(name, RuntimeError.new(exception.message).tap { |e| e.set_backtrace([]) })
       end
 
       def colorized_prefix(experiment)

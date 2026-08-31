@@ -60,7 +60,7 @@ module ActiveExperiment
 
     included do
       define_callbacks :run, skip_after_callbacks_if_terminated: true
-      private :__callbacks, :__callbacks?, :run_callbacks, :_run_callbacks, :_run_run_callbacks
+      private :__callbacks, :run_callbacks, :_run_callbacks, :_run_run_callbacks
     end
 
     # These methods will be included into any Active Experiment object, adding
