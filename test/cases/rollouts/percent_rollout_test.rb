@@ -3,34 +3,40 @@
 require "helper"
 
 class PercentRolloutTest < ActiveSupport::TestCase
-  test "variants are assigned in mostly even distribution" do
+  def distribution_over_every_bucket
+    experiment = SubjectExperiment.new
+    rollout = SubjectExperiment.rollout
+
+    (0...100).each_with_object(Hash.new(0)) do |crc, counts|
+      Zlib.stub(:crc32, crc) { counts[rollout.variant_for(experiment)] += 1 }
+    end
+  end
+
+  test "variants are assigned in even distribution when no rules are given" do
     SubjectExperiment.use_rollout(:percent)
 
-    actual = { "red" => 0, "blue" => 0, "green" => 0 }
-    expect = { "red" => 33, "blue" => 34, "green" => 33 }
-    100.times { |i| actual[SubjectExperiment.run("44#{i}")] += 1 }
-
-    assert_equal expect, actual
+    assert_equal({ red: 34, blue: 33, green: 33 }, distribution_over_every_bucket)
   end
 
-  test "variants are assigned in specified distribution" do
+  test "variants are assigned in exactly the specified distribution" do
     SubjectExperiment.use_rollout(:percent, rules: { red: 25, blue: 30, green: 45 })
 
-    actual = { "red" => 0, "blue" => 0, "green" => 0 }
-    expect = { "red" => 25, "blue" => 30, "green" => 45 }
-    100.times { |i| actual[SubjectExperiment.run("93#{i}")] += 1 }
-
-    assert_equal expect, actual
+    assert_equal({ red: 25, blue: 30, green: 45 }, distribution_over_every_bucket)
   end
 
-  test "variants are assigned in specified distribution when specified using an array" do
+  test "variants are assigned in exactly the specified distribution using an array" do
     SubjectExperiment.use_rollout(:percent, rules: [25, 30, 45])
 
-    actual = { "red" => 0, "blue" => 0, "green" => 0 }
-    expect = { "red" => 25, "blue" => 30, "green" => 45 }
-    100.times { |i| actual[SubjectExperiment.run("93#{i}")] += 1 }
+    assert_equal({ red: 25, blue: 30, green: 45 }, distribution_over_every_bucket)
+  end
 
-    assert_equal expect, actual
+  test "every variant is reachable when running real contexts" do
+    SubjectExperiment.use_rollout(:percent, rules: { red: 25, blue: 30, green: 45 })
+
+    results = 100.times.map { |i| SubjectExperiment.run("context-#{i}") }
+
+    assert_empty results - ["red", "blue", "green"]
+    assert_equal ["blue", "green", "red"], results.uniq.sort
   end
 
   test "validations are run for the percentage sum on hashes" do

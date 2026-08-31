@@ -47,8 +47,8 @@ module ActiveExperiment
         total = 0
 
         case rules
-        when Array then variants[rules.find_index { |percent| crc % 100 <= total += percent }]
-        when Hash then rules.find { |_, percent| crc % 100 <= total += percent }.first
+        when Array then variants[rules.find_index { |percent| crc % 100 < total += percent }]
+        when Hash then rules.find { |_, percent| crc % 100 < total += percent }.first
         else variants[crc % variants.length]
         end
       end
