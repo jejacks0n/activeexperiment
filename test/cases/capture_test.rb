@@ -16,6 +16,17 @@ class CaptureTest < ActiveSupport::TestCase
     assert_equal "<div><span>red</span></div>", result
   end
 
+  test "leaving literal placeholders in the surrounding markup alone" do
+    result = SubjectExperiment.set(capture: self).run do |experiment|
+      buf = +"<div title='{{blue}}'>"
+      buf << experiment.on(:red) { "<span>red</span>" }
+      buf << experiment.on(:blue) { "<span>blue</span>" }
+      buf << "</div>"
+    end
+
+    assert_equal "<div title='{{blue}}'><span>red</span></div>", result
+  end
+
   test "trying to capture when not capturable" do
     UncapturableExperiment = Class.new(SubjectExperiment) do
       def capturable?

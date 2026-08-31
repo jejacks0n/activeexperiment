@@ -82,20 +82,30 @@ module ActiveExperiment
     def on(*variant_names, &block)
       super
 
-      "{{#{variant_names.join("}}{{")}}}"
+      variant_names.map { |variant| capture_placeholder(variant) }.join
     end
 
     def run(&block)
       super
 
       if capturable?
-        @results = @capture.to_s.gsub(/{{([\w]+)}}/) { $1 == variant.to_s ? @results : "" }
+        @results = @capture.to_s.gsub(capture_placeholder_pattern) do
+          $1 == variant.to_s ? @results : ""
+        end
       else
         @results
       end
     end
 
     private
+      def capture_placeholder(variant)
+        "{{#{run_id}:#{variant}}}"
+      end
+
+      def capture_placeholder_pattern
+        /\{\{#{Regexp.escape(run_id)}:(\w+)\}\}/
+      end
+
       def resolve_results
         @results = capture { super }
       end
