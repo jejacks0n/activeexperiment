@@ -11,6 +11,7 @@ gem "puma"
 gem "minitest"
 gem "minitest-mock"
 gem "simplecov"
+gem "simplecov-cobertura"
 gem "rdoc"
 
 gem "rubocop", ">= 1.25.1", require: false

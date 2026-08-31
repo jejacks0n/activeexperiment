@@ -1,35 +1,62 @@
-#name: Ruby CI
-#
-#on:
-#  push:
-#    branches: [ main ]
-#  pull_request:
-#    branches: [ main ]
-#
-#jobs:
-#  test:
-#    runs-on: ubuntu-latest
-#    strategy:
-#      matrix:
-#        ruby-version: [ '3.1', '3.0', '2.7' ]
-#    steps:
-#      - uses: actions/checkout@v3
-#      - uses: actions/cache@v3
-#        with:
-#          path: vendor/bundle
-#          key: bundle-use-ruby-${{ matrix.ruby-version }}-${{ hashFiles('**/Gemfile.lock') }}
-#          restore-keys: |
-#            bundle-use-ruby-${{ matrix.ruby-version }}-
-#      - name: Set up Ruby ${{ matrix.ruby-version }}
-#        uses: ruby/setup-ruby@359bebbc29cbe6c87da6bc9ea3bc930432750108
-#        with:
-#          ruby-version: ${{ matrix.ruby-version }}
-#          bundler-cache: true
-#      - name: Install dependencies
-#        run: |
-#          bundle config path vendor/bundle
-#          bundle install --jobs 4 --retry 3
-#      - name: Rubocop
-#        run: bundle exec rubocop
-#      - name: Run tests
-#        run: bundle exec rake
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rubocop:
+    name: RuboCop
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4"
+          bundler-cache: true
+      - run: bundle exec rubocop --parallel
+
+  test:
+    name: Test (Ruby ${{ matrix.ruby }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ruby: [ "3.2", "3.3", "3.4", "4.0" ]
+
+    services:
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      REDIS_URL: redis://localhost:6379/1
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ matrix.ruby }}
+          bundler-cache: true
+      - run: bundle exec rake test
+
+      # One upload is enough; the suite is identical across the matrix.
+      - name: Upload coverage to Codecov
+        if: matrix.ruby == '3.4'
+        uses: codecov/codecov-action@v7
+        with:
+          files: ./coverage/coverage.xml
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: true

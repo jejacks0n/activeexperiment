@@ -4,11 +4,19 @@
 require "active_support/core_ext/kernel/reporting"
 require "minitest/mock"
 require "simplecov"
+require "simplecov-cobertura"
 
 SimpleCov.start do
   skip "test/"
   skip "lib/active_experiment/version.rb"
   skip "lib/active_experiment/gem_version.rb"
+
+  # Codecov can't parse SimpleCov's own JSON, so emit Cobertura XML alongside
+  # the HTML report that's useful locally.
+  formatter SimpleCov::Formatter::MultiFormatter.new([
+    SimpleCov::Formatter::HTMLFormatter,
+    SimpleCov::Formatter::CoberturaFormatter,
+  ])
 end
 
 require "active_experiment"
