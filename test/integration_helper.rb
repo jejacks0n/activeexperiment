@@ -9,6 +9,8 @@ require "helper"
 dummy_app_path = Dir.mktmpdir + "/dummy"
 # dummy_app_path = File.expand_path("dummy_", __dir__)
 
+original_working_directory = Dir.pwd
+
 Rails::Generators::AppGenerator.start(
   Rails::Generators::ARGVScrubber.new([
     "new", dummy_app_path,
@@ -16,6 +18,7 @@ Rails::Generators::AppGenerator.start(
     "--skip-bundle",
     "--skip-git",
     "--skip-javascript",
+    "--skip-asset-pipeline",
     "--force",
     "--quiet",
     "-d", "sqlite3",
@@ -23,7 +26,13 @@ Rails::Generators::AppGenerator.start(
   ]).prepare!
 )
 
+Dir.chdir(original_working_directory)
+
+require "active_experiment/railtie"
+
 require "#{dummy_app_path}/config/environment.rb"
 require "rails/test_help"
+
+Dir.chdir(original_working_directory)
 
 Rails.backtrace_cleaner.remove_silencers!

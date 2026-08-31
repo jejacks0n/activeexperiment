@@ -25,5 +25,4 @@ group :test do
   gem "redis"
   gem "sqlite3", "~> 2.1"
   gem "bootsnap"
-  gem "sprockets-rails"
 end

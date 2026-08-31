@@ -40,8 +40,14 @@ describe "using the rails generator" do
   end
 
   def run_generator(options, &block)
+    # The generator runs in a child process, which only inherits a load path
+    # that can find the gem when the suite was started through bundler. Put lib
+    # on it explicitly so `rake` and `bundle exec rake` behave the same.
+    lib_path = File.expand_path("../../lib", __dir__)
+    env = { "RUBYOPT" => "-I#{lib_path} #{ENV["RUBYOPT"]}".strip }
+
     Dir.chdir(Rails.root) do
-      stdout, stderr, status = Open3.capture3("rails g experiment #{options}")
+      stdout, stderr, status = Open3.capture3(env, "rails g experiment #{options}")
       block.call(stdout, stderr, status)
     end
   end

@@ -13,8 +13,8 @@ module ActiveExperiment
   # secret key and a bit length. The secret key is used to salt the digest, and
   # the bit length is used to determine the length of the digest.
   #
-  # The secret key will default to +Rails.application.secrets.secret_key_base+
-  # when possible, and can be configured by:
+  # The secret key will default to +Rails.application.secret_key_base+ when
+  # possible, and can be configured by:
   #
   #   ActiveExperiment::Base.digest_secret_key = ENV["AE_SECRET_KEY"]
   #

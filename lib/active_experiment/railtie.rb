@@ -5,6 +5,12 @@ require "active_experiment"
 
 module ActiveExperiment
   class Railtie < Rails::Railtie # :nodoc:
+    def self.default_digest_secret_key(app)
+      app.secret_key_base
+    rescue ArgumentError
+      nil
+    end
+
     config.active_experiment = ActiveSupport::OrderedOptions.new
     config.active_experiment.custom_rollouts = {}
     config.active_experiment.log_query_tags_around_run = true
@@ -24,23 +30,16 @@ module ActiveExperiment
     initializer "active_experiment.set_configs" do |app|
       options = app.config.active_experiment
       config.after_initialize do
-        options.digest_secret_key ||= app.secrets.secret_key_base
+        options.digest_secret_key ||= Railtie.default_digest_secret_key(app)
 
-        options.each do |k, v|
-          k = "#{k}="
-          if ActiveExperiment.respond_to?(k)
-            ActiveExperiment.send(k, v)
-          end
-        end
-      end
-
-      ActiveSupport.on_load(:active_experiment) do
-        options.each do |k, v|
-          k = "#{k}="
-          if ActiveExperiment.respond_to?(k)
-            ActiveExperiment.send(k, v)
-          elsif respond_to?(k)
-            send(k, v)
+        ActiveSupport.on_load(:active_experiment) do
+          options.each do |k, v|
+            setter = "#{k}="
+            if ActiveExperiment.respond_to?(setter)
+              ActiveExperiment.send(setter, v)
+            elsif respond_to?(setter)
+              send(setter, v)
+            end
           end
         end
       end
