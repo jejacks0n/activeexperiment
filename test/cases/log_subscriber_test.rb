@@ -260,7 +260,7 @@ class LogSubscriberTest < ActiveSupport::TestCase
 
       assert_equal <<~MESSAGES, logger.messages
         NoCallbackExperiment[key]  Running log_subscriber_test/no_callback_experiment (Run ID: 1fbde0db)
-        NestedExperiment[key]  Nesting experiment in LogSubscriberTest::NoCallbackExperiment[fe41da0e]
+        NestedExperiment[key]  Nesting experiment in LogSubscriberTest::NoCallbackExperiment[60df93c4]
         NestedExperiment[key]  Running log_subscriber_test/nested_experiment (Run ID: 1fbde0db)
         NestedExperiment[key]  Completed running control variant (Duration: 0.0ms | Allocations: 0)
         NoCallbackExperiment[key]  Completed running red variant (Duration: 0.0ms | Allocations: 0)
