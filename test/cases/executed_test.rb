@@ -23,7 +23,7 @@ class ExecutedTest < ActiveSupport::TestCase
       SubjectExperiment.set(variant: :blue).run("bar")
     end
 
-    assert_equal JSON.parse(ActiveExperiment::Executed.to_json), {
+    expected = {
       "executed_test/subject_experiment" => {
         "experiment" => "executed_test/subject_experiment",
         "run_id" => "1fbde0db",
@@ -32,6 +32,8 @@ class ExecutedTest < ActiveSupport::TestCase
         "skipped" => false,
       }
     }
+
+    assert_equal expected, JSON.parse(ActiveExperiment::Executed.to_json)
   end
 
   test "getting the experiments run as a json array" do
@@ -40,7 +42,7 @@ class ExecutedTest < ActiveSupport::TestCase
       SubjectExperiment.set(variant: :blue).run("bar")
     end
 
-    assert_equal JSON.parse(ActiveExperiment::Executed.to_json_array), [
+    expected = [
       {
         "experiment" => "executed_test/subject_experiment",
         "run_id" => "1fbde0db",
@@ -56,6 +58,8 @@ class ExecutedTest < ActiveSupport::TestCase
         "skipped" => false,
       }
     ]
+
+    assert_equal expected, JSON.parse(ActiveExperiment::Executed.to_json_array)
   end
 
   test "resetting the executed experiments" do
