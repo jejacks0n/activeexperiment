@@ -8,7 +8,35 @@ describe "the railtie" do
   end
 
   it "registers each of the custom rollouts" do
-    skip("implement me")
+    assert_equal RedRollout, ActiveExperiment::Rollouts.lookup(:red)
+    assert_operator ActiveExperiment::Rollouts.lookup(:blue), :<,
+      ActiveExperiment::Rollouts::BaseRollout
+  end
+
+  it "assigns variants through a rollout registered by path" do
+    experiment = Class.new(ActiveExperiment::Base) do
+      def self.name = "RedByPathExperiment"
+
+      variant(:red) { "red" }
+      variant(:blue) { "blue" }
+
+      use_rollout :red
+    end
+
+    assert_equal "red", experiment.run
+  end
+
+  it "assigns variants through a rollout registered by class" do
+    experiment = Class.new(ActiveExperiment::Base) do
+      def self.name = "BlueByClassExperiment"
+
+      variant(:red) { "red" }
+      variant(:blue) { "blue" }
+
+      use_rollout :blue
+    end
+
+    assert_equal "blue", experiment.run
   end
 
   it "sets the configuration options" do

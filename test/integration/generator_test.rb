@@ -19,15 +19,45 @@ describe "using the rails generator" do
   end
 
   it "generates a runnable test" do
-    skip("implement me")
+    path = Rails.root.join("test/experiments/my_experiment_test.rb")
+    generated = path.read
+
+    assert_includes generated, "class MyExperimentTest < ActiveExperiment::TestCase"
+
+    # The generated test is an empty shell, so it would pass no matter what it
+    # inherited from. Give it an assertion that only resolves if the generated
+    # case actually provides the experiment helpers, then run it for real.
+    path.write(generated.sub(/^end$/, <<~RUBY))
+      \s\stest "the generated case provides the experiment helpers" do
+      \s\s\s\sassert_experiment_with(MyExperiment, variant: :red) do
+      \s\s\s\s\s\sMyExperiment.set(variant: :red).run
+      \s\s\s\send
+      \s\send
+      end
+    RUBY
+
+    run_command("rails test test/experiments/my_experiment_test.rb") do |stdout, stderr, status|
+      assert_equal 0, status, "generated test failed:\n#{stdout}\n#{stderr}"
+      assert_includes stdout, "1 runs"
+      assert_includes stdout, "0 failures, 0 errors, 0 skips"
+    end
   end
 
   it "generates a runnable experiment" do
-    skip("implement me")
+    run_command(%(rails runner 'ActiveExperiment.logger = nil; e = MyExperiment.new(:ctx); e.run; puts e.variant')) do |stdout, stderr, status|
+      assert_equal 0, status, stderr
+      assert_includes %w[red blue green], stdout.strip
+    end
   end
 
   it "can register custom rollouts" do
-    skip("implement me")
+    path = Rails.root.join("app/experiments/my_experiment.rb")
+    path.write(path.read.sub(/^(class MyExperiment .*)$/, "\\1\n  use_rollout :red"))
+
+    run_command(%(rails runner 'ActiveExperiment.logger = nil; e = MyExperiment.new(:ctx); e.run; puts e.variant')) do |stdout, stderr, status|
+      assert_equal 0, status, stderr
+      assert_equal "red", stdout.strip
+    end
   end
 
   it "doesn't allow duplicate experiment names" do
@@ -40,14 +70,18 @@ describe "using the rails generator" do
   end
 
   def run_generator(options, &block)
-    # The generator runs in a child process, which only inherits a load path
-    # that can find the gem when the suite was started through bundler. Put lib
-    # on it explicitly so `rake` and `bundle exec rake` behave the same.
+    run_command("rails g experiment #{options}", &block)
+  end
+
+  def run_command(command, &block)
+    # These run in a child process, which only inherits a load path that can
+    # find the gem when the suite was started through bundler. Put lib on it
+    # explicitly so `rake` and `bundle exec rake` behave the same.
     lib_path = File.expand_path("../../lib", __dir__)
     env = { "RUBYOPT" => "-I#{lib_path} #{ENV["RUBYOPT"]}".strip }
 
     Dir.chdir(Rails.root) do
-      stdout, stderr, status = Open3.capture3(env, "rails g experiment #{options}")
+      stdout, stderr, status = Open3.capture3(env, command)
       block.call(stdout, stderr, status)
     end
   end
