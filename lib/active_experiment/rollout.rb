@@ -20,7 +20,7 @@ module ActiveExperiment
   #     variant(:red) { "red" }
   #     variant(:blue) { "blue" }
   #
-  #     rollout :percent, rules: { blue: 60, red: 40 }
+  #     use_rollout :percent, rules: { blue: 60, red: 40 }
   #   end
   #
   # An experiment might even be configured to use itself as a rollout. As

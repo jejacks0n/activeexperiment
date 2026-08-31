@@ -21,13 +21,13 @@ module ActiveExperiment
     #     variant(:blue) { }
     #
     #     # Assign even distribution to all variants.
-    #     rollout :percent
+    #     use_rollout :percent
     #
     #     # Assign 25% to control, 30% to red, and 45% to blue.
-    #     rollout :percent, rules: {control: 25, red: 30, blue: 45}
+    #     use_rollout :percent, rules: {control: 25, red: 30, blue: 45}
     #
     #     # Same as above, but using an array.
-    #     rollout :percent, rules: [25, 30, 45]
+    #     use_rollout :percent, rules: [25, 30, 45]
     #   end
     #
     # To use as the default, configure it to +:percent+.

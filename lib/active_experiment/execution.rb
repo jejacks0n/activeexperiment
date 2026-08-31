@@ -106,9 +106,14 @@ module ActiveExperiment
     #     experiment.on(:treatment) { "treatment" }
     #   end
     #
+    # Running an experiment that's already been run returns the result of the
+    # first run instead of running it again, and the block isn't called. That
+    # makes +run+ safe to call more than once -- repeatedly in a view, or by
+    # accident from within a run or variant block -- without resolving a second
+    # variant or recording a second execution.
+    #
     # Raises an ActiveExperiment::ExecutionError if there are no variants
-    # registered, or if the experiment is already running, in the case of
-    # accidentally calling run again within a run or variant block.
+    # registered.
     def run(&block)
       return @results if defined?(@results)
       raise ExecutionError, "No variants registered" if variant_names.empty?

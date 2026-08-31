@@ -22,10 +22,10 @@ module ActiveExperiment
     #     variant(:blue) { }
     #
     #     # Randomize between all variants, every run.
-    #     rollout :random
+    #     use_rollout :random
     #
     #     # Random, but once assigned, cache the assignment.
-    #     rollout :random, cache: true
+    #     use_rollout :random, cache: true
     #   end
     #
     # To use as the default, configure it to +:random+.
