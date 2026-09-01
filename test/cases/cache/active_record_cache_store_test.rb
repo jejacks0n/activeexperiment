@@ -320,7 +320,7 @@ class ActiveRecordCacheStorePostgresTest < ActiveRecordCacheStoreTestCase
     require "pg"
     super
   rescue LoadError, ActiveRecord::ConnectionNotEstablished, ActiveRecord::NoDatabaseError
-    skip("Skipping because postgres is not available")
+    skip("Skipping because postgres isn't available. Point AE_POSTGRES_URL at one to run these (default: #{POSTGRES_URL}).")
   end
 
   # A binary column is what the store documents for anything but sqlite, and
@@ -507,7 +507,7 @@ class ActiveRecordCacheStoreMysqlTest < ActiveRecordCacheStoreTestCase
     require "trilogy"
     super
   rescue LoadError, ActiveRecord::ConnectionNotEstablished, ActiveRecord::NoDatabaseError
-    skip("Skipping because mysql is not available")
+    skip("Skipping because mysql isn't available. Point AE_MYSQL_URL at one to run these (default: #{MYSQL_URL}).")
   end
 
   def establish_connection(value_type: :binary, **overrides)
