@@ -58,9 +58,13 @@ module ActiveExperiment
         app.config.active_record.query_log_tags |= [:experiment]
 
         ActiveSupport.on_load(:active_record) do
-          ActiveRecord::QueryLogs.taggings[:experiment] = lambda do |context|
-            context[:experiment].class.name if context[:experiment]
-          end
+          # Assigned rather than mutated: the taggings hash is frozen, both as
+          # its default and again on every assignment, so +[]=+ raises. Merging
+          # either way around leaves both this tagging and Active Record's own
+          # in place, so it doesn't matter which of us registers first.
+          ActiveRecord::QueryLogs.taggings = ActiveRecord::QueryLogs.taggings.merge(
+            experiment: ->(context) { context[:experiment]&.class&.name }
+          )
         end
       end
     end

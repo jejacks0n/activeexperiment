@@ -23,6 +23,22 @@ than the adapter's error.
 
 ### Fixed
 
+* Query log tags work now.
+
+  The experiment is now set on the execution context for the duration of the
+  run, so queries made from variant blocks, segment rules and callbacks are
+  attributed to it:
+
+  ```sql
+  SELECT 1 /*application='MyApp',experiment='MyExperiment'*/
+  ```
+
+  It's scoped to the run, so queries after aren't still attributed to it, and a
+  nested experiment restores the outer context when it finishes.
+  
+  Set `config.active_experiment.log_query_tags_around_run = false` to leave the
+  tagging unregistered.
+
 * The Active Record cache store can write a key that's already been written.
   Writes were a bare `INSERT`, so anything that wrote the same key twice raised
   `ActiveRecord::RecordNotUnique`. That covered two ordinary cases: two requests

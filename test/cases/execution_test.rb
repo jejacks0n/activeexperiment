@@ -3,6 +3,13 @@
 require "helper"
 
 class ExecutionTest < ActiveSupport::TestCase
+  def teardown
+    # The run puts back whatever was there before it, so this is only here to
+    # keep one leaking test from making the next one look fine.
+    ActiveSupport::ExecutionContext.clear
+    super
+  end
+
   test "setting options at the class level" do
     result = SubjectExperiment.set(variant: :blue, foo: :bar).run
 
@@ -86,6 +93,45 @@ class ExecutionTest < ActiveSupport::TestCase
     assert_equal result1, result2
     assert_equal "red", result1
     assert_equal "red", result2
+  end
+
+  test "the experiment is in the execution context while it runs" do
+    seen = nil
+    SubjectExperiment.run do |experiment|
+      experiment.on(:red) { seen = ActiveSupport::ExecutionContext.to_h[:experiment] }
+    end
+
+    assert_instance_of SubjectExperiment, seen
+  end
+
+  test "the execution context is put back after the run" do
+    SubjectExperiment.run
+
+    assert_nil ActiveSupport::ExecutionContext.to_h[:experiment]
+  end
+
+  test "the execution context is put back after a run that raises" do
+    assert_raises(RuntimeError) do
+      SubjectExperiment.run { |experiment| experiment.on(:red) { raise "from the variant" } }
+    end
+
+    assert_nil ActiveSupport::ExecutionContext.to_h[:experiment]
+  end
+
+  test "a nested experiment hands the outer one back" do
+    inner = after_inner = nil
+    SubjectExperiment.run do |experiment|
+      experiment.on(:red) do
+        NoControlExperiment.run do |nested|
+          nested.on(:treatment) { inner = ActiveSupport::ExecutionContext.to_h[:experiment] }
+        end
+
+        after_inner = ActiveSupport::ExecutionContext.to_h[:experiment]
+      end
+    end
+
+    assert_instance_of NoControlExperiment, inner
+    assert_instance_of SubjectExperiment, after_inner
   end
 
   class SubjectExperiment < ActiveExperiment::Base

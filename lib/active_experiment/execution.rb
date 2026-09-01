@@ -121,12 +121,19 @@ module ActiveExperiment
       @results = nil
 
       begin
-        instrument(:start_experiment)
-        instrument(:process_run) do
-          run_callbacks(:run, :process_run_callbacks) do
-            call_run_block(&block) if block.present?
-            @variant = resolve_variant
-            @results = resolve_results
+        # Scoped to the run rather than assigned outright the way Active Job
+        # assigns its job: a job is the whole unit of work, but an experiment
+        # runs inside one, often more than once. Setting it with a block puts
+        # back whatever was there before, so queries after the run aren't still
+        # attributed to it, and a nested experiment hands the outer one back.
+        ActiveSupport::ExecutionContext.set(experiment: self) do
+          instrument(:start_experiment)
+          instrument(:process_run) do
+            run_callbacks(:run, :process_run_callbacks) do
+              call_run_block(&block) if block.present?
+              @variant = resolve_variant
+              @results = resolve_results
+            end
           end
         end
 

@@ -1,5 +1,9 @@
 # frozen_string_literal: true
 
+# Off by default outside development, and the railtie only registers the
+# experiment tagging when it's on.
+environment "config.active_record.query_log_tags_enabled = true"
+
 initializer "custom_rollouts.rb", <<-RUBY
 require "active_experiment" # only needed for the test environment
 

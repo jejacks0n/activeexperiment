@@ -3,6 +3,18 @@
 require "integration_helper"
 
 describe "the railtie" do
+  def capture_sql(&block)
+    statements = []
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+      statements << payload[:sql]
+    end
+
+    block.call
+    statements
+  ensure
+    ActiveSupport::Notifications.unsubscribe(subscriber)
+  end
+
   it "sets the logger to the rails logger" do
     assert_equal Rails.logger, ActiveExperiment.logger
   end
@@ -37,6 +49,31 @@ describe "the railtie" do
     end
 
     assert_equal "blue", experiment.run
+  end
+
+  it "registers the experiment query log tag" do
+    assert_includes Rails.application.config.active_record.query_log_tags, :experiment
+    assert_includes ActiveRecord::QueryLogs.taggings.keys, :experiment
+  end
+
+  it "tags queries with the experiment that caused them" do
+    experiment = Class.new(ActiveExperiment::Base) do
+      def self.name = "QueryTaggedExperiment"
+
+      variant(:red) { ActiveRecord::Base.lease_connection.select_value("SELECT 1") }
+    end
+
+    statements = capture_sql { experiment.run }
+
+    assert statements.any? { |sql| sql.include?("QueryTaggedExperiment") },
+      "expected a tagged statement, got: #{statements.inspect}"
+  end
+
+  it "doesn't tag queries run outside of an experiment" do
+    statements = capture_sql { ActiveRecord::Base.lease_connection.select_value("SELECT 1") }
+
+    assert statements.none? { |sql| sql.include?("experiment") },
+      "expected no experiment tag, got: #{statements.inspect}"
   end
 
   it "sets the configuration options" do
