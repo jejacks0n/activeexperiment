@@ -1,6 +1,51 @@
 # Changelog
 
-## 0.2.0 (unreleased)
+## 0.2.1 (unreleased)
+
+### Requires a migration
+
+**The Active Record cache store now requires the unique index on `key`.**
+
+The index has been part of the store's documented migration since it was
+introduced, so a table created by following those docs already has it and needs
+no change. If yours doesn't, add it before upgrading:
+
+```ruby
+add_index :active_experiment_cache_entries, :key, unique: true
+```
+
+Writes upsert on that index now. Without it PostgreSQL and SQLite reject the
+statement, and MySQL would quietly accumulate duplicate rows instead of failing
+at all -- so on MySQL the index is checked up front, once per table, rather than
+left to go wrong silently. Either way a write against a table that's missing it
+raises an `ActiveExperiment::ExecutionError` naming the index to add, rather
+than the adapter's error.
+
+### Fixed
+
+* The Active Record cache store can write a key that's already been written.
+  Writes were a bare `INSERT`, so anything that wrote the same key twice raised
+  `ActiveRecord::RecordNotUnique`. That covered two ordinary cases: two requests
+  resolving the same context concurrently -- both miss the read, both write, and
+  one of them 500s -- and re-running `cache_each` over a collection that had
+  already been pre-cached. Writes now upsert.
+
+* `write` with `unless_exist: true` no longer has a gap between checking and
+  writing. It was a read followed by an insert, so a concurrent write between
+  the two would still raise. It's now a single statement -- `ON CONFLICT DO
+  NOTHING` where there's a conflict target, and on MySQL a plain insert whose
+  duplicate is caught, since `CLIENT_FOUND_ROWS` makes a matched row and an
+  inserted row report the same count there. It still returns `false` when an
+  entry was already present.
+
+* The Active Record cache store works on MySQL. Identifiers were written into
+  the statements bare, and `key` is a reserved word there, so every statement
+  the store issued was a syntax error -- the store had never actually run on
+  MySQL despite being documented as probably fine. Table and column names now
+  go through the connection's quoting, and the upsert uses `ON DUPLICATE KEY
+  UPDATE` (with the row alias form on 8.0.19+) where there's no conflict target.
+
+## 0.2.0 (released 2026-09-01)
 
 ### Breaking changes
 

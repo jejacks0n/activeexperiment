@@ -31,4 +31,11 @@ group :test do
   install_if -> { ENV["CI"] || ENV["AE_POSTGRES_URL"] } do
     gem "pg"
   end
+
+  # Only for the MySQL run of the Active Record cache store tests. Trilogy
+  # rather than mysql2 because it doesn't need libmysqlclient to build, but a
+  # server still has to be running, so it's opt in the same way.
+  install_if -> { ENV["CI"] || ENV["AE_MYSQL_URL"] } do
+    gem "trilogy"
+  end
 end

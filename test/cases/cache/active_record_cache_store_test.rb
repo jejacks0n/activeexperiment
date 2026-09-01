@@ -31,6 +31,10 @@ class ActiveRecordCacheStoreTestCase < ActiveSupport::TestCase
       t.string :key
       t.send(value_type, :value)
     end
+
+    # Matches the migration in the store's documentation. Writes upsert on this
+    # index, so leaving it out of the fixture would hide the case it exists for.
+    ActiveRecord::Base.connection.add_index(TABLE_NAME, :key, unique: true)
   end
 
   def setup
@@ -159,6 +163,64 @@ class ActiveRecordCacheStoreTestCase < ActiveSupport::TestCase
     assert_equal 1, experiment.cache_store.length
   end
 
+  test "overwriting an entry that's already been written" do
+    store = SubjectExperiment.cache_store
+
+    store.write("overwritten", :red)
+    store.write("overwritten", :blue)
+
+    assert_equal :blue, store.read("overwritten")
+    assert_equal 1, store.length
+  end
+
+  test "writing the same entry from two stores, as two requests would" do
+    first = ActiveExperiment::Cache::ActiveRecordCacheStore.new
+    second = ActiveExperiment::Cache::ActiveRecordCacheStore.new
+
+    # Neither sees the other's write when they read, which is what a pair of
+    # concurrent requests resolving the same context looks like.
+    assert_nil first.read("concurrent")
+    assert_nil second.read("concurrent")
+
+    first.write("concurrent", :red)
+    second.write("concurrent", :red)
+
+    assert_equal :red, first.read("concurrent")
+    assert_equal 1, first.length
+  end
+
+  test "pre-caching the same collection more than once" do
+    contexts = [{ id: 1 }, { id: 2 }]
+
+    SubjectExperiment.set(variant: :blue).cache_each(contexts)
+    SubjectExperiment.set(variant: :blue).cache_each(contexts)
+
+    assert_equal 2, SubjectExperiment.cache_store.length
+    assert_equal "blue", SubjectExperiment.run(id: 1)
+  end
+
+  test "writing to a table that's missing the unique index" do
+    ActiveRecord::Base.connection.remove_index(TABLE_NAME, :key)
+    store = ActiveExperiment::Cache::ActiveRecordCacheStore.new
+
+    error = assert_raises(ActiveExperiment::ExecutionError) do
+      store.write("unindexed", :red)
+    end
+
+    assert_match(/needs a unique index on `key`/, error.message)
+    assert_match(/add_index :#{TABLE_NAME}, :key, unique: true/, error.message)
+  end
+
+  test "writing with unless_exist leaves the existing entry alone" do
+    store = SubjectExperiment.cache_store
+
+    assert_equal true, store.write("guarded", :red, unless_exist: true)
+    assert_equal false, store.write("guarded", :blue, unless_exist: true)
+
+    assert_equal :red, store.read("guarded")
+    assert_equal 1, store.length
+  end
+
   class SubjectExperiment < ActiveExperiment::Base
     variant(:red) { "red" }
     variant(:blue) { "blue" }
@@ -263,6 +325,191 @@ class ActiveRecordCacheStorePostgresTest < ActiveRecordCacheStoreTestCase
 
   # A binary column is what the store documents for anything but sqlite, and
   # postgres is the adapter that enforces it.
+  def establish_connection(value_type: :binary, **overrides)
+    super
+  end
+end
+
+# The statements the store builds for each adapter shape, without needing that
+# database to be running. The real suites below cover behaviour; this covers the
+# SQL itself, so the MySQL branches stay honest for anyone who doesn't have a
+# server handy -- `key` is reserved there, and it has no conflict target.
+class ActiveRecordCacheStoreStatementTest < ActiveSupport::TestCase
+  # Stands in for an adapter with the given traits. Only the parts of the
+  # connection the store actually reaches for.
+  Index = Struct.new(:unique, :columns)
+
+  class FakeConnection
+    attr_reader :statements
+
+    def initialize(conflict_target:, raw_alias: false, quote: '"', indexed: true)
+      @conflict_target = conflict_target
+      @raw_alias = raw_alias
+      @quote = quote
+      @indexed = indexed
+      @statements = []
+    end
+
+    def supports_insert_conflict_target? = @conflict_target
+    def supports_insert_raw_alias_syntax? = @raw_alias
+    def quote_column_name(name) = "#{@quote}#{name}#{@quote}"
+    def quote_table_name(name) = "#{@quote}#{name}#{@quote}"
+    def indexes(_table) = @indexed ? [Index.new(true, ["key"])] : []
+
+    def exec_update(sql, _name = nil)
+      @statements << sql
+      1
+    end
+
+    def exec_query(sql, _name = nil)
+      @statements << sql
+      []
+    end
+  end
+
+  def setup
+    # sanitize_sql_array quotes binds through the current connection.
+    ActiveRecord::Base.establish_connection(adapter: "sqlite3", database: ":memory:")
+    super
+  end
+
+  def write_sql(unless_exist: false, **traits)
+    write(unless_exist: unless_exist, **traits).last.statements.sole
+  end
+
+  # Returns [result, connection] so callers can assert on either.
+  def write(unless_exist: false, **traits)
+    connection = FakeConnection.new(**traits)
+    store = ActiveExperiment::Cache::ActiveRecordCacheStore.new
+
+    # The key is deliberately free of the substring "key", so the identifier
+    # assertions below aren't looking at the bind value.
+    result = store.stub(:with_connection, ->(&block) { block.call(connection) }) do
+      store.write("subject-42", :red, unless_exist: unless_exist)
+    end
+
+    [result, connection]
+  end
+
+  test "upserting against an adapter with a conflict target" do
+    sql = write_sql(conflict_target: true)
+
+    assert_includes sql, %(INSERT INTO "active_experiment_cache_entries" ("key", "value"))
+    assert_includes sql, %(ON CONFLICT ("key") DO UPDATE SET "value" = excluded."value")
+  end
+
+  test "upserting against MySQL, which has no conflict target" do
+    sql = write_sql(conflict_target: false, raw_alias: false, quote: "`")
+
+    assert_includes sql, "INSERT INTO `active_experiment_cache_entries` (`key`, `value`)"
+    assert_includes sql, "ON DUPLICATE KEY UPDATE `value` = VALUES(`value`)"
+  end
+
+  test "upserting against MySQL new enough for the row alias syntax" do
+    sql = write_sql(conflict_target: false, raw_alias: true, quote: "`")
+
+    assert_includes sql, "AS new ON DUPLICATE KEY UPDATE `value` = new.`value`"
+    assert_not_includes sql, "VALUES(`value`)"
+  end
+
+  test "skipping duplicates against an adapter with a conflict target" do
+    sql = write_sql(conflict_target: true, unless_exist: true)
+
+    assert_includes sql, %(ON CONFLICT ("key") DO NOTHING)
+  end
+
+  test "skipping duplicates against MySQL leaves the conflict clause off" do
+    # Assigning a column to itself would be the usual spelling, but the affected
+    # row count can't be read back through CLIENT_FOUND_ROWS -- so the duplicate
+    # is left to raise instead, and write_entry reads the answer off that.
+    sql = write_sql(conflict_target: false, raw_alias: true, quote: "`", unless_exist: true)
+
+    assert_not_includes sql, "ON DUPLICATE KEY UPDATE"
+    assert_not_includes sql, "ON CONFLICT"
+    assert_match(/\AINSERT INTO `active_experiment_cache_entries`.*\)\s*\z/m, sql)
+  end
+
+  test "a duplicate on the MySQL skip path is reported as not written" do
+    connection = FakeConnection.new(conflict_target: false, quote: "`")
+    store = ActiveExperiment::Cache::ActiveRecordCacheStore.new
+
+    def connection.exec_update(*)
+      raise ActiveRecord::RecordNotUnique, "Duplicate entry"
+    end
+
+    written = store.stub(:with_connection, ->(&block) { block.call(connection) }) do
+      store.write("subject-42", :red, unless_exist: true)
+    end
+
+    assert_equal false, written
+  end
+
+  test "a duplicate on a plain MySQL write still raises" do
+    connection = FakeConnection.new(conflict_target: false, quote: "`")
+    store = ActiveExperiment::Cache::ActiveRecordCacheStore.new
+
+    def connection.exec_update(*)
+      raise ActiveRecord::RecordNotUnique, "Duplicate entry"
+    end
+
+    store.stub(:with_connection, ->(&block) { block.call(connection) }) do
+      assert_raises(ActiveRecord::RecordNotUnique) { store.write("subject-42", :red) }
+    end
+  end
+
+  test "MySQL checks for the unique index up front, since it can't fail on it" do
+    _, connection = nil
+    error = assert_raises(ActiveExperiment::ExecutionError) do
+      _, connection = write(conflict_target: false, quote: "`", indexed: false)
+    end
+
+    assert_match(/needs a unique index on `key`/, error.message)
+    assert_nil connection, "no statement should have been issued"
+  end
+
+  test "adapters with a conflict target don't pay for the index lookup" do
+    # They fail loudly on the write itself, so there's nothing to check up front.
+    connection = FakeConnection.new(conflict_target: true, indexed: false)
+    store = ActiveExperiment::Cache::ActiveRecordCacheStore.new
+
+    store.stub(:with_connection, ->(&block) { block.call(connection) }) do
+      assert store.write("subject-42", :red)
+    end
+
+    assert_equal 1, connection.statements.length
+  end
+
+  test "identifiers are always quoted, since `key` is reserved in MySQL" do
+    [{ conflict_target: true },
+     { conflict_target: false, quote: "`" },
+     { conflict_target: false, raw_alias: true, quote: "`" }].each do |traits|
+      sql = write_sql(**traits)
+
+      assert_no_match(/(?<![`"\w])key(?![`"\w])/, sql, "unquoted `key` in: #{sql}")
+    end
+  end
+end
+
+# The same behaviour against a real MySQL, which is the other shape the store
+# has to write for: `key` is a reserved word there so identifiers have to be
+# quoted, and there's no conflict target, so the upsert spells itself
+# ON DUPLICATE KEY UPDATE instead.
+#
+# Trilogy rather than mysql2 so that running these doesn't need libmysqlclient.
+class ActiveRecordCacheStoreMysqlTest < ActiveRecordCacheStoreTestCase
+  MYSQL_URL = ENV.fetch("AE_MYSQL_URL", "trilogy://root@127.0.0.1:3306/activeexperiment_test")
+
+  def connection_config
+    { url: MYSQL_URL }
+  end
+
+  def before_setup
+    require "trilogy"
+    super
+  rescue LoadError, ActiveRecord::ConnectionNotEstablished, ActiveRecord::NoDatabaseError
+    skip("Skipping because mysql is not available")
+  end
+
   def establish_connection(value_type: :binary, **overrides)
     super
   end
