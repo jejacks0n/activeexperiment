@@ -38,6 +38,18 @@ than the adapter's error.
   inserted row report the same count there. It still returns `false` when an
   entry was already present.
 
+* An experiment is recorded in `ActiveExperiment::Executed` once, rather than
+  once per call to `run`. Running an experiment that's already run returns the
+  first result without resolving a second variant, as documented, but the
+  recording sat in a method level `ensure` that the early return reached too.
+  Calling `run` repeatedly -- in a view, or by accident from inside a run or
+  variant block -- grew the list on every call, with each entry holding the
+  experiment and its context for the rest of the request.
+
+  An experiment that raises partway through is still recorded. One that raises
+  `No variants registered` before it can start is no longer recorded, since it
+  never ran.
+
 * The Active Record cache store works on MySQL. Identifiers were written into
   the statements bare, and `key` is a reserved word there, so every statement
   the store issued was a syntax error -- the store had never actually run on

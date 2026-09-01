@@ -62,6 +62,32 @@ class ExecutedTest < ActiveSupport::TestCase
     assert_equal expected, JSON.parse(ActiveExperiment::Executed.to_json_array)
   end
 
+  test "running an experiment more than once records it once" do
+    experiment = SubjectExperiment.new("foo")
+
+    3.times { experiment.run }
+
+    assert_equal 1, ActiveExperiment::Executed.as_array.length
+  end
+
+  test "running an experiment from within its own run block records it once" do
+    SubjectExperiment.run("foo") { |experiment| experiment.run }
+
+    assert_equal 1, ActiveExperiment::Executed.as_array.length
+  end
+
+  test "an experiment that raises while running is still recorded" do
+    assert_raises(RuntimeError) { RaisingExperiment.run("foo") }
+
+    assert_equal 1, ActiveExperiment::Executed.as_array.length
+  end
+
+  test "an experiment that can't run isn't recorded" do
+    assert_raises(ActiveExperiment::ExecutionError) { NoVariantsExperiment.run("foo") }
+
+    assert_empty ActiveExperiment::Executed.as_array
+  end
+
   test "resetting the executed experiments" do
     SubjectExperiment.run("foo")
 
@@ -75,5 +101,12 @@ class ExecutedTest < ActiveSupport::TestCase
   class SubjectExperiment < ActiveExperiment::Base
     variant(:red) { "red" }
     variant(:blue) { "blue" }
+  end
+
+  class RaisingExperiment < ActiveExperiment::Base
+    variant(:red) { raise "from the variant" }
+  end
+
+  class NoVariantsExperiment < ActiveExperiment::Base
   end
 end

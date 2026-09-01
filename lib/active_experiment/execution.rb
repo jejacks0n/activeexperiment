@@ -119,18 +119,21 @@ module ActiveExperiment
       raise ExecutionError, "No variants registered" if variant_names.empty?
 
       @results = nil
-      instrument(:start_experiment)
-      instrument(:process_run) do
-        run_callbacks(:run, :process_run_callbacks) do
-          call_run_block(&block) if block.present?
-          @variant = resolve_variant
-          @results = resolve_results
-        end
-      end
 
-      @results
-    ensure
-      Executed << self
+      begin
+        instrument(:start_experiment)
+        instrument(:process_run) do
+          run_callbacks(:run, :process_run_callbacks) do
+            call_run_block(&block) if block.present?
+            @variant = resolve_variant
+            @results = resolve_results
+          end
+        end
+
+        @results
+      ensure
+        Executed << self
+      end
     end
 
     private

@@ -52,8 +52,10 @@ module ActiveExperiment
     # Interface to add an experiment to the executed experiments. This is
     # intended to be used by the +run+ method of the experiment class.
     #
-    # Experiments are added to the executed experiments if they have been
-    # assigned a variant.
+    # Every experiment that starts running is added, once, including ones that
+    # were skipped and ones that raised partway through -- a skipped experiment
+    # is still a decision the client layer may need to know about. Experiments
+    # that raised before they could start aren't added.
     def self.<<(experiment)
       self.experiments ||= []
       experiments << experiment
