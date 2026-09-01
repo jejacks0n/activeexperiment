@@ -30,15 +30,20 @@ module ActiveExperiment
 
     # The experiment run identifier.
     #
-    # A unique UUID, per experiment instantiation.
-    attr_reader :run_id
+    # A unique UUID, per experiment instantiation. Generated the first time
+    # it's needed.
+    def run_id
+      @run_id ||= SecureRandom.uuid
+    end
 
     # The experiment run key.
     #
     # This is a hexdigest that's generated from the experiment context. The run
     # key is used as the cache key and can be used by the rollout to determine
     # variant assignment.
-    attr_reader :run_key
+    def run_key
+      @run_key ||= run_key_hexdigest
+    end
 
     # The variant that's been assigned or resolved for this run.
     #
@@ -82,9 +87,13 @@ module ActiveExperiment
     def initialize(context = {})
       @context = context
       @name = self.class.experiment_name
-      @run_id = SecureRandom.uuid
-      @run_key = run_key_hexdigest(context)
       @options = {}
+
+      # Not for the value, which is memoized for the run key to digest later,
+      # but for the check it performs: this is where a context that can't be
+      # identified stably is rejected, and it has to happen for every
+      # experiment rather than only the ones that get as far as a run key.
+      context_digest_ingredient
     end
 
     # Configures the experiment with the given options.
@@ -169,7 +178,7 @@ module ActiveExperiment
     end
 
     def to_s # :nodoc:
-      details = [@variant.inspect, @skip.inspect, (@run_key.slice(0, 16) + "..."), @context.inspect, @options.inspect]
+      details = [@variant.inspect, @skip.inspect, (run_key.slice(0, 16) + "..."), @context.inspect, @options.inspect]
       string = "#<%s:%#0x @variant=%s @skip=%s @run_key=%s @context=%s, @options=%s>"
       sprintf(string, self.class.name, object_id, *details)
     end

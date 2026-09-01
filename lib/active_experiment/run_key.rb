@@ -66,10 +66,14 @@ module ActiveExperiment
     end
 
     private
-      def run_key_hexdigest(source)
-        ingredients = [DIGEST_VERSION, name, digest_secret_key, digest_ingredient(source)]
+      def run_key_hexdigest
+        ingredients = [DIGEST_VERSION, name, digest_secret_key, context_digest_ingredient]
 
         ::Digest::SHA2.new(digest_bit_length).hexdigest(ingredients.join("|"))
+      end
+
+      def context_digest_ingredient
+        @context_digest_ingredient ||= digest_ingredient(context)
       end
 
       # Renders a value as a string that's identical for equivalent contexts.

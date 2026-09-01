@@ -23,6 +23,17 @@ than the adapter's error.
 
 ### Changed
 
+* `run_id` and `run_key` are generated when they're first needed rather than
+  when the experiment is initialized. A skipped experiment resolves its variant
+  without a run key, and plenty of runs never need a run id, so we can get by
+  without having to calculate them up front.
+  Measured with logging off: building an experiment went from 3.9µs to 1.6µs, 
+  and a skipped run from 13.1µs to 9.9µs.
+
+  The context is still rendered when the experiment is initialized, which helps
+  identify potential issues even while an experiment is skipped, but we don't
+  have to generate the hash until it's required, which improves performance.
+
 * Captured experiment results are html safe, so `<%=` renders them correctly
   and the raw `<%==` tag is no longer needed. Everything in the result came
   back from the view context's `capture`, which returns a SafeBuffer or escapes
