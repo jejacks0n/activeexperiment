@@ -264,7 +264,7 @@ end
 <summary>Expand HAML example</summary>
 
 ```haml
-!= MyExperiment.set(capture: self).run(current_user) do |experiment|
+= MyExperiment.set(capture: self).run(current_user) do |experiment|
   %div.container
     = experiment.on(:red) do
       %button.red-pill Red
@@ -277,7 +277,7 @@ end
 <summary>Expand ERB example</summary>
 
 ```erb
-<%== MyExperiment.set(capture: self).run(current_user) do |experiment| %>
+<%= MyExperiment.set(capture: self).run(current_user) do |experiment| %>
   <div class="container">
     <%= experiment.on(:red) do %>
       <button class="red-pill">Red</button>

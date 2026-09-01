@@ -11,7 +11,7 @@ class RedisHashCacheStoreTest < ActiveSupport::TestCase
   def setup
     REDIS.flushall
   rescue Redis::CannotConnectError
-    skip("Skipping because redis is not available")
+    skip("Skipping because redis isn't available. Point REDIS_URL at one to run these.")
   end
 
   test "clearing the entire cache for all experiments" do

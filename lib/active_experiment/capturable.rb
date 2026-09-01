@@ -1,5 +1,10 @@
 # frozen_string_literal: true
 
+# For +html_safe+ below. Nothing else in the library pulls this in, and while
+# anything rendering a view will already have it, the mixin shouldn't depend on
+# that having happened.
+require "active_support/core_ext/string/output_safety"
+
 module ActiveExperiment
   # == Capturable Mixin
   #
@@ -40,7 +45,7 @@ module ActiveExperiment
   # and duplicating it (potentially several times) in each variant block would
   # be undesirable:
   #
-  #   <%== MyExperiment.set(capture: self).run do |experiment| %>
+  #   <%= MyExperiment.set(capture: self).run do |experiment| %>
   #     <div class="container">
   #       <%= experiment.on(:red) do %>
   #         <button class="red-pill">Red</button>
@@ -57,9 +62,9 @@ module ActiveExperiment
   # 1. The `ActiveExperiment::Capturable` module has been included in the
   #    experiment class.
   #
-  # 2. The use of +==+ in the ERB tag is important because Active Experiment
-  #    doesn't try to determine if the experiment results are safe to render,
-  #    and it's up to the caller to make them html safe again.
+  # 2. The captured result is html safe, so +=+ renders it as is. Everything
+  #    in it came back from the view context's +capture+, which escapes what
+  #    it's given, so nothing unescaped is introduced by assembling it.
   #
   # 3. The +capture+ option that's passed to the +set+ method tells Active
   #    Experiment to use the view context's +capture+ logic to build the output
@@ -70,7 +75,7 @@ module ActiveExperiment
   #
   # In HAML, the above example would look like:
   #
-  #   != MyExperiment.set(capture: self).run do |experiment|
+  #   = MyExperiment.set(capture: self).run do |experiment|
   #     %div.container
   #       = experiment.on(:red) do
   #         %button.red-pill Red
@@ -88,13 +93,16 @@ module ActiveExperiment
     def run(&block)
       super
 
-      if capturable?
-        @results = @capture.to_s.gsub(capture_placeholder_pattern) do
-          $1 == variant.to_s ? @results : ""
-        end
-      else
-        @results
-      end
+      # There's no surrounding markup to place the variant into, so the
+      # variant's own result is the result.
+      return @results unless capturable? && @capture.present?
+
+      # Marked safe because every piece of it is safe. The capture scope is a
+      # view context, and its +capture+ returns a SafeBuffer or escapes a plain
+      # String before handing it back.
+      @results = @capture.to_s.gsub(capture_placeholder_pattern) do
+        $1 == variant.to_s ? @results : ""
+      end.html_safe
     end
 
     private

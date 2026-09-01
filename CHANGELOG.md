@@ -21,7 +21,21 @@ left to go wrong silently. Either way a write against a table that's missing it
 raises an `ActiveExperiment::ExecutionError` naming the index to add, rather
 than the adapter's error.
 
+### Changed
+
+* Captured experiment results are html safe, so `<%=` renders them correctly
+  and the raw `<%==` tag is no longer needed. Everything in the result came
+  back from the view context's `capture`, which returns a SafeBuffer or escapes
+  a plain String, so assembling it introduces nothing unescaped -- but `gsub`
+  handed back a bare String, which left callers rendering it raw. Templates
+  already using `<%==` render identically and don't need changing.
+
 ### Fixed
+
+* A capturable experiment run without a run block renders its variant instead
+  of nothing. There's no surrounding markup to substitute into in that case, so
+  the empty capture was overwriting the variant's result with an empty string.
+  The same applied to a run block that rendered nothing.
 
 * Query log tags work now.
 
