@@ -36,6 +36,12 @@ and start new experiments fresh.
 * Run key digests now include a version marker, so future changes to the key
   algorithm are detectable rather than silent.
 
+* `ActiveExperiment::Rollouts.lookup` no longer resolves constants it wasn't
+  given. Lookup fell through to the top level, so an unregistered `FooRollout`
+  defined anywhere in an application would answer `lookup(:foo)` and could be
+  used by `use_rollout :foo`. Rollouts now have to be registered. Registering by
+  path still works, including when the file defines the class at the top level.
+
 ### Fixed
 
 * The Railtie no longer calls `Rails.application.secrets`, which was removed in

@@ -83,6 +83,7 @@ module ActiveExperiment
       const_name = "#{name.to_s.camelize}#{ROLLOUT_SUFFIX}"
       case rollout
       when String, Pathname
+        registered_by_path << const_name
         autoload(const_name, rollout)
       when Class
         const_set(const_name, rollout)
@@ -95,9 +96,24 @@ module ActiveExperiment
     #
     # Raises an +ArgumentError+ if the rollout hasn't been registered.
     def self.lookup(name)
-      const_get("#{name.to_s.camelize}#{ROLLOUT_SUFFIX}")
+      const_name = "#{name.to_s.camelize}#{ROLLOUT_SUFFIX}"
+
+      # Scoped to constants on this module, so an unrelated top level
+      # FooRollout can't answer lookup(:foo) without having been registered.
+      # Rollouts registered by path are the exception -- the file they point at
+      # usually defines the class at the top level, so the constant isn't here
+      # once it loads, and the autoload entry that was is gone.
+      unless const_defined?(const_name, false) || registered_by_path.include?(const_name)
+        raise ArgumentError, "No rollout registered for #{name.inspect}"
+      end
+
+      const_get(const_name)
     rescue NameError
       raise ArgumentError, "No rollout registered for #{name.inspect}"
+    end
+
+    def self.registered_by_path # :nodoc:
+      @registered_by_path ||= []
     end
 
     # Base class for the included rollouts. Useful for custom rollouts.
