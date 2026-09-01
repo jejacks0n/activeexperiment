@@ -399,6 +399,7 @@ Active Experiment is released under the MIT license:
 
 * https://opensource.org/licenses/MIT
 
-Copyright 2022 [jejacks0n](https://github.com/jejacks0n)
+Copyright 2022-2026 &copy; [jejacks0n](https://github.com/jejacks0n)
 
-## Make Code Not War
+## Make Code Not War ♥
+
