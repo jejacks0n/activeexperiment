@@ -14,6 +14,26 @@ class RolloutsTest < ActiveSupport::TestCase
     ActiveExperiment::Rollouts.register(:autoload, Pathname.new("support/autoload_rollout"))
 
     assert_equal "AutoloadRollout", ActiveExperiment::Rollouts.lookup(:autoload).name
+
+    # Looked up twice on purpose: the file defines the class at the top level,
+    # so once the autoload has fired there's no longer an entry for it on the
+    # Rollouts module to find it by.
+    assert_equal "AutoloadRollout", ActiveExperiment::Rollouts.lookup(:autoload).name
+  end
+
+  test "not looking up rollouts that were never registered" do
+    # Defined at the top level on purpose. Constant lookup used to fall through
+    # to Object, so an unrelated StrayRollout anywhere in the application would
+    # answer lookup(:stray) without ever having been registered.
+    Object.const_set(:StrayRollout, Class.new(ActiveExperiment::Rollouts::BaseRollout))
+
+    error = assert_raises(ArgumentError) do
+      ActiveExperiment::Rollouts.lookup(:stray)
+    end
+
+    assert_equal "No rollout registered for :stray", error.message
+  ensure
+    Object.send(:remove_const, :StrayRollout)
   end
 
   test "registering a rollout with the class method" do

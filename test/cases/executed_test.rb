@@ -27,7 +27,7 @@ class ExecutedTest < ActiveSupport::TestCase
       "executed_test/subject_experiment" => {
         "experiment" => "executed_test/subject_experiment",
         "run_id" => "1fbde0db",
-        "run_key" => "1a4faf1902a78648456ead5dc882f514685936698e1c60094cf17c238fe1f858",
+        "run_key" => "32977ecb981cc727be359d0a688180cf822b1f6ba15680db6cad82d349e250a2",
         "variant" => "blue",
         "skipped" => false,
       }
@@ -44,14 +44,14 @@ class ExecutedTest < ActiveSupport::TestCase
       {
         "experiment" => "executed_test/subject_experiment",
         "run_id" => "1fbde0db",
-        "run_key" => "1f82a46e1375cbd4e302489f0a1931908a50cd7216965687bee202d08cacf789",
+        "run_key" => "cf50425bc514577c720ff7ee9fc21f4b4162699e7f4ba5119abb5381efc4588b",
         "variant" => "red",
         "skipped" => false,
       },
       {
         "experiment" => "executed_test/subject_experiment",
         "run_id" => "1fbde0db",
-        "run_key" => "1a4faf1902a78648456ead5dc882f514685936698e1c60094cf17c238fe1f858",
+        "run_key" => "32977ecb981cc727be359d0a688180cf822b1f6ba15680db6cad82d349e250a2",
         "variant" => "blue",
         "skipped" => false,
       }
