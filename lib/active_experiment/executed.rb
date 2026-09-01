@@ -1,6 +1,12 @@
 # frozen_string_literal: true
 
 require "active_support/current_attributes"
+# Both of the +to_json+ methods below rely on this. Nothing else in the library
+# pulls it in, so without it they're left with whatever +to_json+ happens to be
+# defined -- the one stdlib json installs if some other gem required it, or no
+# method at all. Requiring it means the same encoder either way, which is the
+# one a Rails application would already be using.
+require "active_support/core_ext/object/json"
 
 module ActiveExperiment
   # == Executed Experiments

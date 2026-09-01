@@ -88,6 +88,34 @@ class ExecutedTest < ActiveSupport::TestCase
     assert_empty ActiveExperiment::Executed.as_array
   end
 
+  test "serializing to json in a process that's loaded nothing else" do
+    # The suite has stdlib json loaded through other gems, and it defines its
+    # own Hash#to_json, so a missing require doesn't show here. A process
+    # holding nothing but the library is the only place it does.
+    script = <<~RUBY
+      require "active_experiment"
+      ActiveExperiment.logger = nil
+
+      experiment = Class.new(ActiveExperiment::Base) do
+        def self.name = "BareExperiment"
+
+        variant(:red) { "red" }
+      end
+      experiment.run(id: 1)
+
+      print ActiveExperiment::Executed.to_json
+    RUBY
+
+    output = IO.popen(
+      [RbConfig.ruby, "-I", File.expand_path("../../lib", __dir__), "-e", script],
+      err: [:child, :out],
+      &:read
+    )
+
+    assert_predicate $?, :success?, output
+    assert_includes output, "bare_experiment"
+  end
+
   test "resetting the executed experiments" do
     SubjectExperiment.run("foo")
 
