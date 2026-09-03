@@ -23,6 +23,12 @@ than the adapter's error.
 
 ### Changed
 
+* The log subscriber takes into consideration the log level before it builds
+  the log. This improves performance based on the log level now -- so a log
+  level of `:error` performs better than a log level of `:debug` for example.
+  This is also related to, and required for the run_id/run_key performance
+  improvements below.
+
 * `run_id` and `run_key` are generated when they're first needed rather than
   when the experiment is initialized. A skipped experiment resolves its variant
   without a run key, and plenty of runs never need a run id, so we can get by

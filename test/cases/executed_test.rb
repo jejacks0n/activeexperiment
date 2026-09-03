@@ -18,48 +18,50 @@ class ExecutedTest < ActiveSupport::TestCase
   end
 
   test "getting the experiments run as json" do
+    # Serializing has to happen inside the stub too: run ids are generated when
+    # they're first asked for, and a run doesn't ask for one on its own.
     SecureRandom.stub(:uuid, "1fbde0db") do
       SubjectExperiment.run("foo") # overridden in our json object!
       SubjectExperiment.set(variant: :blue).run("bar")
-    end
 
-    expected = {
-      "executed_test/subject_experiment" => {
-        "experiment" => "executed_test/subject_experiment",
-        "run_id" => "1fbde0db",
-        "run_key" => "32977ecb981cc727be359d0a688180cf822b1f6ba15680db6cad82d349e250a2",
-        "variant" => "blue",
-        "skipped" => false,
+      expected = {
+        "executed_test/subject_experiment" => {
+          "experiment" => "executed_test/subject_experiment",
+          "run_id" => "1fbde0db",
+          "run_key" => "32977ecb981cc727be359d0a688180cf822b1f6ba15680db6cad82d349e250a2",
+          "variant" => "blue",
+          "skipped" => false,
+        }
       }
-    }
 
-    assert_equal expected, JSON.parse(ActiveExperiment::Executed.to_json)
+      assert_equal expected, JSON.parse(ActiveExperiment::Executed.to_json)
+    end
   end
 
   test "getting the experiments run as a json array" do
     SecureRandom.stub(:uuid, "1fbde0db") do
       SubjectExperiment.run("foo")
       SubjectExperiment.set(variant: :blue).run("bar")
+
+      expected = [
+        {
+          "experiment" => "executed_test/subject_experiment",
+          "run_id" => "1fbde0db",
+          "run_key" => "cf50425bc514577c720ff7ee9fc21f4b4162699e7f4ba5119abb5381efc4588b",
+          "variant" => "red",
+          "skipped" => false,
+        },
+        {
+          "experiment" => "executed_test/subject_experiment",
+          "run_id" => "1fbde0db",
+          "run_key" => "32977ecb981cc727be359d0a688180cf822b1f6ba15680db6cad82d349e250a2",
+          "variant" => "blue",
+          "skipped" => false,
+        }
+      ]
+
+      assert_equal expected, JSON.parse(ActiveExperiment::Executed.to_json_array)
     end
-
-    expected = [
-      {
-        "experiment" => "executed_test/subject_experiment",
-        "run_id" => "1fbde0db",
-        "run_key" => "cf50425bc514577c720ff7ee9fc21f4b4162699e7f4ba5119abb5381efc4588b",
-        "variant" => "red",
-        "skipped" => false,
-      },
-      {
-        "experiment" => "executed_test/subject_experiment",
-        "run_id" => "1fbde0db",
-        "run_key" => "32977ecb981cc727be359d0a688180cf822b1f6ba15680db6cad82d349e250a2",
-        "variant" => "blue",
-        "skipped" => false,
-      }
-    ]
-
-    assert_equal expected, JSON.parse(ActiveExperiment::Executed.to_json_array)
   end
 
   test "running an experiment more than once records it once" do
