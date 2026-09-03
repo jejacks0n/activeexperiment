@@ -51,16 +51,23 @@ module ActiveExperiment
   #
   #   ActiveExperiment::Base.default_rollout = :feature_flag
   #
-  # Custom rollouts can also be registered using autoloading. For example, if a
-  # custom rollout is defined in +lib/feature_flag_rollout.rb+, it can be
-  # registered to be autoloaded, and is only loaded when needed.
+  # Custom rollouts can also be registered by name, and are then only loaded
+  # when an experiment uses one:
+  #
+  #   ActiveExperiment::Rollouts.register(:feature_flag, "FeatureFlagRollout")
+  #
+  # This is what a rollout in +app/+ wants. Nothing has to be loaded to
+  # register one, so it can be done from an initializer, where autoloading
+  # isn't available yet -- and the name being resolved on every lookup means
+  # the reloader replacing the class in development is picked up.
+  #
+  # A rollout that lives somewhere Rails doesn't autoload from can be
+  # registered with a +Pathname+ to it instead:
   #
   #   ActiveExperiment::Rollouts.register(
   #     :feature_flag,
   #     Rails.root.join("lib/feature_flag_rollout.rb")
   #   )
-  #
-  # Now, the custom rollout will only be loaded when used in an experiment.
   module Rollouts
     extend ActiveSupport::Autoload
 
@@ -71,50 +78,80 @@ module ActiveExperiment
     ROLLOUT_SUFFIX = "Rollout"
     private_constant :ROLLOUT_SUFFIX
 
+    # The rollouts that ship with the library. Held as names so that looking
+    # one up autoloads it, the same as any other registered rollout.
+    BUILT_IN = {
+      inactive: "ActiveExperiment::Rollouts::InactiveRollout",
+      percent: "ActiveExperiment::Rollouts::PercentRollout",
+      random: "ActiveExperiment::Rollouts::RandomRollout"
+    }.freeze
+    private_constant :BUILT_IN
+
     # Allows registering custom rollouts.
     #
     # The rollout must implement the +skipped_for+ and +variant_for+ methods,
     # which is checked when the rollout is used in an experiment.
     #
-    # If a string or +Pathname+ is provided, the rollout will be autoloaded.
+    # A rollout can be registered as a class, as the name of one, or as a
+    # +Pathname+ to a file defining one:
+    #
+    #   ActiveExperiment::Rollouts.register(:feature_flag, FeatureFlagRollout)
+    #   ActiveExperiment::Rollouts.register(:feature_flag, "FeatureFlagRollout")
+    #   ActiveExperiment::Rollouts.register(:feature_flag, Rails.root.join("lib/feature_flag_rollout.rb"))
+    #
+    # Registering by name is what a rollout in +app/+ wants. Nothing has to be
+    # loaded to register one, so it can be done from an initializer, where
+    # autoloading isn't available yet -- and because the name is resolved every
+    # time it's looked up, a reloaded class is picked up rather than the copy
+    # that was registered.
+    #
+    # A class that has a name is stored by it for the same reason. One that
+    # doesn't -- an anonymous class, or a +register_as+ inside +Class.new+ --
+    # is held as it is, and won't survive a reload.
     #
     # Raises an +ArgumentError+ if the rollout isn't an expected type.
     def self.register(name, rollout)
-      const_name = "#{name.to_s.camelize}#{ROLLOUT_SUFFIX}"
-      case rollout
-      when String, Pathname
-        registered_by_path << const_name
-        autoload(const_name, rollout)
-      when Class
-        const_set(const_name, rollout)
-      else
-        raise ArgumentError, "Provide a class to register, or string for autoloading"
-      end
+      registry[name.to_sym] =
+        case rollout
+        when Pathname then rollout
+        when String then rollout
+        when Class then rollout.name || rollout
+        else
+          raise ArgumentError, "Provide a rollout class, the name of one, or a Pathname to one"
+        end
     end
 
     # Allows looking up a rollout by name.
     #
+    # Only names that were registered resolve, so an unrelated +FooRollout+
+    # defined elsewhere in an application can't answer +lookup(:foo)+.
+    #
     # Raises an +ArgumentError+ if the rollout hasn't been registered.
     def self.lookup(name)
-      const_name = "#{name.to_s.camelize}#{ROLLOUT_SUFFIX}"
+      name = name.to_sym
+      rollout = registry.fetch(name) { raise ArgumentError, "No rollout registered for #{name.inspect}" }
 
-      # Scoped to constants on this module, so an unrelated top level
-      # FooRollout can't answer lookup(:foo) without having been registered.
-      # Rollouts registered by path are the exception -- the file they point at
-      # usually defines the class at the top level, so the constant isn't here
-      # once it loads, and the autoload entry that was is gone.
-      unless const_defined?(const_name, false) || registered_by_path.include?(const_name)
-        raise ArgumentError, "No rollout registered for #{name.inspect}"
+      case rollout
+      when Class then rollout
+      when Pathname then load_rollout(name, rollout)
+      else rollout.to_s.constantize
       end
-
-      const_get(const_name)
-    rescue NameError
-      raise ArgumentError, "No rollout registered for #{name.inspect}"
+    rescue NameError => error
+      raise ArgumentError, "No rollout registered for #{name.inspect} (#{error.message})"
     end
 
-    def self.registered_by_path # :nodoc:
-      @registered_by_path ||= []
+    def self.registry # :nodoc:
+      @registry ||= BUILT_IN.dup
     end
+
+    # The file a +Pathname+ points at is expected to define a rollout named for
+    # what it was registered as, usually at the top level.
+    def self.load_rollout(name, path) # :nodoc:
+      require path.to_s
+
+      "#{name.to_s.camelize}#{ROLLOUT_SUFFIX}".constantize
+    end
+    private_class_method :load_rollout
 
     # Base class for the included rollouts. Useful for custom rollouts.
     #
@@ -123,6 +160,12 @@ module ActiveExperiment
     # overridden.
     class BaseRollout
       # Convenience method to register the rollout with Active Experiment.
+      #
+      # This only takes effect once the class has been loaded, so it suits a
+      # rollout that's required, or one defined in an initializer. A rollout in
+      # +app/+ is autoloaded, and in development nothing loads it until it's
+      # referenced -- register those by name instead, with
+      # +ActiveExperiment::Rollouts.register(:name, "TheRollout")+.
       def self.register_as(name)
         Rollouts.register(name, self)
       end

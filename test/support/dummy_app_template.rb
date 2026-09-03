@@ -24,3 +24,34 @@ class RedRollout < ActiveExperiment::Rollouts::BaseRollout
   end
 end
 RUBY
+
+# Turn reloading on for the dummy environment so we can test hot reloading.
+gsub_file "config/environments/test.rb",
+  "config.enable_reloading = false", "config.enable_reloading = true"
+
+# This represents a rollout that lives in app/, so Zeitwerk manages it.
+# A dev reload should reload this. It's registered by name from the
+# initializer that's below.
+file "app/rollouts/reloadable_rollout.rb", <<-RUBY
+class ReloadableRollout < ActiveExperiment::Rollouts::BaseRollout
+  def variant_for(*)
+    :red
+  end
+end
+RUBY
+
+initializer "reloadable_rollout.rb", <<-RUBY
+ActiveExperiment::Rollouts.register :reloadable, "ReloadableRollout"
+RUBY
+
+# The same thing through the application config, which is the other place a
+# rollout can be named without needing it loaded.
+file "app/rollouts/configured_rollout.rb", <<-RUBY
+class ConfiguredRollout < ActiveExperiment::Rollouts::BaseRollout
+  def variant_for(*)
+    :blue
+  end
+end
+RUBY
+
+environment 'config.active_experiment.custom_rollouts = { configured: "ConfiguredRollout" }'

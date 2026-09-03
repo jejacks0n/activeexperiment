@@ -76,6 +76,39 @@ describe "the railtie" do
       "expected no experiment tag, got: #{statements.inspect}"
   end
 
+  it "resolves a rollout that lives in app/, registered by name" do
+    # Never referenced before now: registering by name is what lets it be
+    # looked up at all, since nothing loads the class on the way in.
+    assert_equal ReloadableRollout, ActiveExperiment::Rollouts.lookup(:reloadable)
+  end
+
+  it "registers a rollout named in the application config" do
+    assert_equal ConfiguredRollout, ActiveExperiment::Rollouts.lookup(:configured)
+  end
+
+  it "assigns variants through a rollout named in the application config" do
+    experiment = Class.new(ActiveExperiment::Base) do
+      def self.name = "ConfiguredByNameExperiment"
+
+      variant(:red) { "red" }
+      variant(:blue) { "blue" }
+
+      use_rollout :configured
+    end
+
+    assert_equal "blue", experiment.run
+  end
+
+  it "resolves the reloaded class rather than the one it was registered with" do
+    before = ActiveExperiment::Rollouts.lookup(:reloadable)
+
+    Rails.application.reloader.reload!
+    after = ActiveExperiment::Rollouts.lookup(:reloadable)
+
+    assert_equal false, before.equal?(after), "expected a new class object after reloading"
+    assert_equal ReloadableRollout, after
+  end
+
   it "sets the configuration options" do
     assert_equal Rails.application.secret_key_base,
       ActiveExperiment::Base.send(:digest_secret_key)

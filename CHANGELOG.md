@@ -23,6 +23,18 @@ than the adapter's error.
 
 ### Changed
 
+* Rollouts can be registered by name, and a `String` now means the name of a
+  class rather than a path to one. Paths are still supported, as a `Pathname`:
+
+  ```ruby
+  ActiveExperiment::Rollouts.register(:feature_flag, "FeatureFlagRollout")
+  ActiveExperiment::Rollouts.register(:feature_flag, Rails.root.join("lib/feature_flag_rollout.rb"))
+  ```
+
+  This might break your existing rollout registrations if you're using a
+  String. Swap any paths to using a PathName, like using `Rails.root.join`, or
+  similar.
+
 * The log subscriber takes into consideration the log level before it builds
   the log. This improves performance based on the log level now -- so a log
   level of `:error` performs better than a log level of `:debug` for example.

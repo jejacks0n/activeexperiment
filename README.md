@@ -168,6 +168,8 @@ class FeatureFlagRollout < ActiveExperiment::Rollouts::BaseRollout
 end
 ```
 
+Note: `register_as` only takes effect once this file/class has been loaded, which is fine for a rollout that's defined in an initializer or something. In the development environment though, nothing loads it until something references it -- register those by name, as below.
+
 This rollout can now be used the same way the built-in rollouts are:
 
 ```ruby
@@ -180,12 +182,27 @@ class MyExperiment < ActiveExperiment::Base
 end
 ```
 
-Custom rollouts can be registered to autoload as well, so they're only loaded when needed:
+Custom rollouts can be registered by name, so they're only loaded when needed:
+
+```ruby
+ActiveExperiment::Rollouts.register(:feature_flag, "FeatureFlagRollout")
+```
+
+Nothing has to be loaded to register one, so it can go in an initializer -- where autoloading isn't available yet.
+
+Rollouts can also be named in the application config, which is registered on boot:
+
+```ruby
+# config/application.rb
+config.active_experiment.custom_rollouts = { feature_flag: "FeatureFlagRollout" }
+```
+
+A rollout that isn't somewhere Rails autoloads from can be registered with a `Pathname` to it instead:
 
 ```ruby
 ActiveExperiment::Rollouts.register(
-  :feature_flag, 
-  "lib/feature_flag_rollout.rb"
+  :feature_flag,
+  Rails.root.join("lib/feature_flag_rollout.rb")
 )
 ```
 

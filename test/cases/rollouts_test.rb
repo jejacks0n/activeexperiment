@@ -44,12 +44,55 @@ class RolloutsTest < ActiveSupport::TestCase
     assert_equal BarRollout, ActiveExperiment::Rollouts.lookup(:bar)
   end
 
+  test "registering a rollout by name, without loading it" do
+    ActiveExperiment::Rollouts.register(:lazy, "LazyRollout")
+
+    assert_raises(ArgumentError) { ActiveExperiment::Rollouts.lookup(:lazy) }
+
+    Object.const_set(:LazyRollout, Class.new(ActiveExperiment::Rollouts::BaseRollout))
+
+    assert_equal LazyRollout, ActiveExperiment::Rollouts.lookup(:lazy)
+  ensure
+    Object.send(:remove_const, :LazyRollout) if Object.const_defined?(:LazyRollout)
+  end
+
+  test "a registered class is resolved by name, so a reloaded one is picked up" do
+    Object.const_set(:SwappedRollout, Class.new(ActiveExperiment::Rollouts::BaseRollout))
+    ActiveExperiment::Rollouts.register(:swapped, SwappedRollout)
+    original = ActiveExperiment::Rollouts.lookup(:swapped)
+
+    Object.send(:remove_const, :SwappedRollout)
+    Object.const_set(:SwappedRollout, Class.new(ActiveExperiment::Rollouts::BaseRollout))
+
+    assert_not_equal original, ActiveExperiment::Rollouts.lookup(:swapped)
+    assert_equal SwappedRollout, ActiveExperiment::Rollouts.lookup(:swapped)
+  ensure
+    Object.send(:remove_const, :SwappedRollout) if Object.const_defined?(:SwappedRollout)
+  end
+
+  test "an anonymous class is held as it is" do
+    rollout = Class.new(ActiveExperiment::Rollouts::BaseRollout)
+    ActiveExperiment::Rollouts.register(:anon, rollout)
+
+    assert_same rollout, ActiveExperiment::Rollouts.lookup(:anon)
+  end
+
+  test "registering the same name again replaces it" do
+    first = Class.new(ActiveExperiment::Rollouts::BaseRollout)
+    second = Class.new(ActiveExperiment::Rollouts::BaseRollout)
+
+    ActiveExperiment::Rollouts.register(:replaced, first)
+    ActiveExperiment::Rollouts.register(:replaced, second)
+
+    assert_same second, ActiveExperiment::Rollouts.lookup(:replaced)
+  end
+
   test "trying to register a rollout with an unknown type" do
     error = assert_raises(ArgumentError) do
       ActiveExperiment::Rollouts.register(:foo, :symbol)
     end
 
-    assert_equal "Provide a class to register, or string for autoloading", error.message
+    assert_equal "Provide a rollout class, the name of one, or a Pathname to one", error.message
   end
 
   test "trying to look up a rollout that doesn't exist" do
