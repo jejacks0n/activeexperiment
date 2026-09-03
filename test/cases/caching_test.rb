@@ -105,6 +105,24 @@ class CachingTest < ActiveSupport::TestCase
     end
   end
 
+  test "assigning the name of a cache store to the attribute that holds one" do
+    # What `config.active_experiment.cache_store = :redis_hash` reaches. It
+    # used to store the symbol and fail later, on the first cache access.
+    error = assert_raises(ArgumentError) do
+      SubjectExperiment.cache_store = :redis_hash
+    end
+
+    assert_match(/default_cache_store = :redis_hash/, error.message)
+    assert_match(/use_cache_store :redis_hash/, error.message)
+  end
+
+  test "assigning a store to the attribute is still allowed" do
+    store = ActiveSupport::Cache::MemoryStore.new
+    SubjectExperiment.cache_store = store
+
+    assert_same store, SubjectExperiment.cache_store
+  end
+
   class SubjectExperiment < ActiveExperiment::Base
     variant(:red) { "red" }
     variant(:blue) { "blue" }

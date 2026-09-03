@@ -54,9 +54,28 @@ module ActiveExperiment
     REQUIRED_ROLLOUT_METHODS = [:skipped_for, :variant_for].freeze
     private_constant :REQUIRED_ROLLOUT_METHODS
 
+    # Holds the guard below. +class_attribute+ defines its writer straight onto
+    # the singleton class, so overriding it means getting ahead of that rather
+    # than defining a method in +ClassMethods+, which lands behind it.
+    module RolloutAssignment # :nodoc:
+      def rollout=(rollout)
+        if rollout.is_a?(Symbol) || rollout.is_a?(String)
+          raise ArgumentError, <<~MESSAGE.squish
+            Assign a rollout rather than the name of one -- this attribute holds
+            the rollout itself. Use `default_rollout = #{rollout.inspect}` to
+            look one up, or `use_rollout #{rollout.inspect}` within an
+            experiment.
+          MESSAGE
+        end
+
+        super
+      end
+    end
+
     included do
       class_attribute :rollout, instance_predicate: false
       private :rollout=
+      singleton_class.prepend(RolloutAssignment)
 
       self.default_rollout = :percent
     end

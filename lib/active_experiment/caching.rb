@@ -108,8 +108,27 @@ module ActiveExperiment
   module Caching
     extend ActiveSupport::Concern
 
+    # Holds the guard below. +class_attribute+ defines its writer straight onto
+    # the singleton class, so overriding it means getting ahead of that rather
+    # than defining a method in +ClassMethods+, which lands behind it.
+    module StoreAssignment # :nodoc:
+      def cache_store=(store)
+        if store.is_a?(Symbol) || store.is_a?(String)
+          raise ArgumentError, <<~MESSAGE.squish
+            Assign a cache store rather than the name of one -- this attribute
+            holds the store itself. Use
+            `default_cache_store = #{store.inspect}` to look one up, or
+            `use_cache_store #{store.inspect}` within an experiment.
+          MESSAGE
+        end
+
+        super
+      end
+    end
+
     included do
       class_attribute :cache_store, instance_writer: false, instance_predicate: false
+      singleton_class.prepend(StoreAssignment)
 
       self.default_cache_store = :null_store
     end
