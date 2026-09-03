@@ -94,7 +94,8 @@ module ActiveExperiment
   #
   # To configure the cache store globally:
   #
-  #   ActiveExperiment::Base.cache_store = :redis_hash
+  #   ActiveExperiment::Base.default_cache_store = :redis_hash
+  #   Rails.application.config.active_experiment.default_cache_store = :redis_hash
   #
   # To configure the cache store on a per experiment basis:
   #

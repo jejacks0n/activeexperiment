@@ -37,6 +37,46 @@ module ActiveExperiment
     # without it PostgreSQL and SQLite reject the statement outright while MySQL
     # quietly accumulates duplicate rows.
     #
+    # == Clearing an Experiment
+    #
+    # +MyExperiment.clear_cache+ deletes by prefix, which is a +LIKE+ against
+    # the key. On PostgreSQL a btree index over a column with a non C collation
+    # can't serve a prefix match, so that's a sequential scan over every entry
+    # for every experiment. Confirmed with +EXPLAIN+ under +en_US.UTF-8+. For a
+    # cache large enough to care, add an index with the pattern operator class
+    # alongside the unique one:
+    #
+    #   add_index :active_experiment_cache_entries, :key,
+    #     opclass: :varchar_pattern_ops,
+    #     name: "index_active_experiment_cache_entries_on_key_pattern"
+    #
+    # SQLite scans as well, because +LIKE+ is case insensitive there unless
+    # +case_sensitive_like+ is turned on, which rules out its own index
+    # optimization. That one isn't worth working around.
+    #
+    # == Choosing a Database
+    #
+    # Statements run against +ActiveRecord::Base+ unless the store is given a
+    # class to use instead. Since entries are numerous and live for as long as
+    # the experiment does, a busy application may not want them in the same
+    # database everything else is in:
+    #
+    #   class CacheRecord < ActiveRecord::Base
+    #     self.abstract_class = true
+    #
+    #     connects_to database: { writing: :experiments }
+    #   end
+    #
+    #   class MyExperiment < ActiveExperiment::Base
+    #     use_cache_store :active_record, connection_class: CacheRecord
+    #   end
+    #
+    # Reads go through the same class as writes. Pointing them at a replica
+    # isn't supported, and wouldn't be safe: a read that misses because it's
+    # behind resolves the variant again and writes what it resolved, which for
+    # anything but a deterministic rollout can differ from what was already
+    # stored for that context.
+    #
     # == Database Support
     #
     # The value column is binary because that's what entries serialize to -- a
@@ -74,6 +114,12 @@ module ActiveExperiment
       WRITE_STATEMENT = "INSERT INTO %<table>s (%<key>s, %<value>s) VALUES (?, ?) %<conflict>s"
       private_constant :WRITE_STATEMENT
 
+      # Not a backslash: SQLite has no default escape character at all, so one
+      # has to be named, and naming a backslash means writing a literal that
+      # MySQL reads differently depending on NO_BACKSLASH_ESCAPES.
+      LIKE_ESCAPE = "!"
+      private_constant :LIKE_ESCAPE
+
       def length(options = nil)
         options = merged_options(options)
 
@@ -89,7 +135,8 @@ module ActiveExperiment
       def delete_matched(matcher, options = nil)
         options = merged_options(options)
 
-        update(options, "DELETE FROM %<table>s WHERE %<key>s LIKE ?", key_matcher(matcher, options))
+        update(options, "DELETE FROM %<table>s WHERE %<key>s LIKE ? ESCAPE '#{LIKE_ESCAPE}'",
+          key_matcher(matcher, options))
       end
 
       private
@@ -103,7 +150,7 @@ module ActiveExperiment
           payload = binary(serialize_entry(entry, **options))
           skip = !!options[:unless_exist]
 
-          with_connection do |connection|
+          with_connection(options) do |connection|
             verify_unique_index!(connection, options)
 
             begin
@@ -160,9 +207,8 @@ module ActiveExperiment
         def verify_unique_index!(connection, options)
           return if connection.supports_insert_conflict_target?
 
-          # Keyed by table alone: every statement goes through the one
-          # ActiveRecord::Base pool, so there's only ever the one database.
-          verified_indexes.compute_if_absent(table_name(options)) do
+          # Keyed by the connection class and table.
+          verified_indexes.compute_if_absent([connection_class(options).name, table_name(options)]) do
             check_unique_index!(connection, options)
             true
           end
@@ -191,11 +237,15 @@ module ActiveExperiment
           options[:table_name] || DEFAULT_TABLE_NAME
         end
 
+        # Escaped before the trailing wildcard is added, so only that wildcard
+        # is one. Experiment names are underscored, and an underscore matches
+        # any single character in a LIKE pattern -- without this, clearing
+        # +foo_bar+ also clears +foo/bar+, which is what a namespaced
+        # +Foo::Bar+ is named.
         def key_matcher(source, options)
-          source = "#{source}%"
+          source = namespace_key(source, options)
 
-          return source unless options[:namespace]
-          namespace_key(source, options)
+          "#{connection_class(options).sanitize_sql_like(source, LIKE_ESCAPE)}%"
         end
 
         def column_value(result, column)
@@ -227,7 +277,7 @@ module ActiveExperiment
         # MySQL and has to be quoted, the quoting character isn't the same
         # across adapters, and the table name is configurable.
         def statement(options, template, *binds, &block)
-          with_connection do |connection|
+          with_connection(options) do |connection|
             names = {
               table: connection.quote_table_name(table_name(options)),
               key: connection.quote_column_name("key"),
@@ -235,18 +285,22 @@ module ActiveExperiment
             }
             names[:conflict] = conflict_clause(connection, names, options[:unless_exist]) if template.include?("%<conflict>s")
 
-            block.call(connection, sanitize(format(template, names), *binds))
+            block.call(connection, sanitize(options, format(template, names), *binds))
           end
         end
 
-        def sanitize(sql, *binds)
+        def sanitize(options, sql, *binds)
           return sql if binds.empty?
 
-          ActiveRecord::Base.sanitize_sql_array([sql, *binds])
+          connection_class(options).sanitize_sql_array([sql, *binds])
         end
 
-        def with_connection(&block)
-          ActiveRecord::Base.connection_pool.with_connection(&block)
+        def with_connection(options, &block)
+          connection_class(options).connection_pool.with_connection(&block)
+        end
+
+        def connection_class(options)
+          options[:connection_class] || ActiveRecord::Base
         end
     end
   end

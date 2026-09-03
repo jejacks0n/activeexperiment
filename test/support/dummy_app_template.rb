@@ -55,3 +55,7 @@ end
 RUBY
 
 environment 'config.active_experiment.custom_rollouts = { configured: "ConfiguredRollout" }'
+
+# Configured through the application config rather than on the class, to check
+# the railtie resolves it the way `default_cache_store =` does directly.
+environment "config.active_experiment.default_cache_store = :memory_store"

@@ -23,6 +23,16 @@ than the adapter's error.
 
 ### Changed
 
+* The Active Record cache store can be pointed at a database other than the one
+  `ActiveRecord::Base` is connected to, by passing a class to use instead:
+
+  ```ruby
+  use_cache_store :active_record, connection_class: CacheRecord
+  ```
+
+  Entries are numerous and live as long as the experiment does, so a busy
+  application may not want them in its primary database.
+
 * Rollouts can be registered by name, and a `String` now means the name of a
   class rather than a path to one. Paths are still supported, as a `Pathname`:
 
@@ -60,6 +70,9 @@ than the adapter's error.
   already using `<%==` render identically and don't need changing.
 
 ### Fixed
+
+* `MyExperiment.clear_cache` no longer has the possibility to clear other
+  experiments' entries.
 
 * A capturable experiment run without a run block renders its variant instead
   of nothing. There's no surrounding markup to substitute into in that case, so

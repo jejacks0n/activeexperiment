@@ -81,6 +81,41 @@ class ActiveRecordCacheStoreTestCase < ActiveSupport::TestCase
     assert_equal 0, experiment.cache_store.length
   end
 
+  test "deleting matched keys treats an underscore literally" do
+    store = SubjectExperiment.cache_store
+    # What a namespaced Foo::Bar and a flat FooBar are named. An unescaped
+    # underscore matches the slash, so clearing one used to clear both.
+    store.write("foo_bar:1", :red)
+    store.write("foo/bar:1", :blue)
+
+    store.delete_matched("foo_bar")
+
+    assert_nil store.read("foo_bar:1")
+    assert_equal :blue, store.read("foo/bar:1")
+  end
+
+  test "deleting matched keys treats a percent literally" do
+    store = SubjectExperiment.cache_store
+    store.write("pct%:1", :red)
+    store.write("pctother:1", :blue)
+
+    store.delete_matched("pct%")
+
+    assert_nil store.read("pct%:1")
+    assert_equal :blue, store.read("pctother:1")
+  end
+
+  test "deleting matched keys treats the escape character literally" do
+    store = SubjectExperiment.cache_store
+    store.write("bang!:1", :red)
+    store.write("bangother:1", :blue)
+
+    store.delete_matched("bang!")
+
+    assert_nil store.read("bang!:1")
+    assert_equal :blue, store.read("bangother:1")
+  end
+
   test "caching resolved variants" do
     experiment = SubjectExperiment.new
 
@@ -239,6 +274,58 @@ class ActiveRecordCacheStoreTest < ActiveRecordCacheStoreTestCase
     { adapter: "sqlite3", database: ":memory:" }
   end
 
+  test "pointing a store at a database other than the primary" do
+    Dir.mktmpdir do |dir|
+      secondary = Class.new(ActiveRecord::Base) do
+        def self.name = "SecondaryCacheRecord"
+
+        self.abstract_class = true
+      end
+      secondary.establish_connection(adapter: "sqlite3", database: File.join(dir, "secondary.sqlite3"))
+      secondary.connection.create_table(TABLE_NAME, id: false) do |t|
+        t.string :key
+        t.binary :value
+      end
+      secondary.connection.add_index(TABLE_NAME, :key, unique: true)
+
+      store = ActiveExperiment::Cache::ActiveRecordCacheStore.new(connection_class: secondary)
+      store.write("elsewhere", :red)
+
+      assert_equal :red, store.read("elsewhere")
+      assert_equal 1, store.length
+
+      # Written to the secondary, so a store on the primary can't see it.
+      assert_equal 0, ActiveExperiment::Cache::ActiveRecordCacheStore.new.length
+    end
+  end
+
+  test "an experiment using a store on another database" do
+    Dir.mktmpdir do |dir|
+      secondary = Class.new(ActiveRecord::Base) do
+        def self.name = "SecondaryExperimentRecord"
+
+        self.abstract_class = true
+      end
+      secondary.establish_connection(adapter: "sqlite3", database: File.join(dir, "experiments.sqlite3"))
+      secondary.connection.create_table(TABLE_NAME, id: false) do |t|
+        t.string :key
+        t.binary :value
+      end
+      secondary.connection.add_index(TABLE_NAME, :key, unique: true)
+
+      SubjectExperiment.use_cache_store ActiveExperiment::Cache::ActiveRecordCacheStore.new(
+        connection_class: secondary
+      )
+
+      experiment = SubjectExperiment.new(id: 1)
+
+      assert_equal "red", experiment.run
+      assert_equal :red, experiment.cache_store.read(experiment.cache_key)
+      assert_equal 1, experiment.cache_store.length
+      assert_equal 0, ActiveExperiment::Cache::ActiveRecordCacheStore.new.length
+    end
+  end
+
   test "round tripping entries through a binary value column" do
     Dir.mktmpdir do |dir|
       establish_connection(database: File.join(dir, "binary.sqlite3"), value_type: :binary)
@@ -384,7 +471,7 @@ class ActiveRecordCacheStoreStatementTest < ActiveSupport::TestCase
 
     # The key is deliberately free of the substring "key", so the identifier
     # assertions below aren't looking at the bind value.
-    result = store.stub(:with_connection, ->(&block) { block.call(connection) }) do
+    result = store.stub(:with_connection, ->(_options, &block) { block.call(connection) }) do
       store.write("subject-42", :red, unless_exist: unless_exist)
     end
 
@@ -437,7 +524,7 @@ class ActiveRecordCacheStoreStatementTest < ActiveSupport::TestCase
       raise ActiveRecord::RecordNotUnique, "Duplicate entry"
     end
 
-    written = store.stub(:with_connection, ->(&block) { block.call(connection) }) do
+    written = store.stub(:with_connection, ->(_options, &block) { block.call(connection) }) do
       store.write("subject-42", :red, unless_exist: true)
     end
 
@@ -452,7 +539,7 @@ class ActiveRecordCacheStoreStatementTest < ActiveSupport::TestCase
       raise ActiveRecord::RecordNotUnique, "Duplicate entry"
     end
 
-    store.stub(:with_connection, ->(&block) { block.call(connection) }) do
+    store.stub(:with_connection, ->(_options, &block) { block.call(connection) }) do
       assert_raises(ActiveRecord::RecordNotUnique) { store.write("subject-42", :red) }
     end
   end
@@ -472,7 +559,7 @@ class ActiveRecordCacheStoreStatementTest < ActiveSupport::TestCase
     connection = FakeConnection.new(conflict_target: true, indexed: false)
     store = ActiveExperiment::Cache::ActiveRecordCacheStore.new
 
-    store.stub(:with_connection, ->(&block) { block.call(connection) }) do
+    store.stub(:with_connection, ->(_options, &block) { block.call(connection) }) do
       assert store.write("subject-42", :red)
     end
 

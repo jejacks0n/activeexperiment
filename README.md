@@ -225,6 +225,46 @@ class MyExperiment < ActiveExperiment::Base
 end
 ```
 
+## Caching
+
+Experiments don't cache by default, so a variant is resolved on every run. That's fine until the answer can change -- a segment rule like `context.created_at < 1.week.ago` puts a subject in one variant this week and another next week. That's when caching the assignment can come in handy, and can keep assignment stable for the life of the experiment.
+
+Set a store on an experiment:
+
+```ruby
+class MyExperiment < ActiveExperiment::Base
+  variant(:red) { "red" }
+  variant(:blue) { "blue" }
+
+  use_cache_store :redis_hash
+end
+```
+
+Or for all of them, on the class or through the application config:
+
+```ruby
+ActiveExperiment::Base.default_cache_store = :redis_hash
+config.active_experiment.default_cache_store = :redis_hash
+```
+
+Two cache stores ship with the library: `:redis_hash`, which uses a Redis hash per experiment, and `:active_record`, which needs a table -- see `ActiveExperiment::Cache::ActiveRecordCacheStore` for the migration.
+
+Technically any `ActiveSupport::Cache::Store` will work too, as long as it can hold on to entries for as long as the experiment runs.
+
+The Active Record store can be pointed at a database other than the one `ActiveRecord::Base` is connected to. If you want to store experiment data in a database other than your primary, you can define a model and then use that as your `connection_class`. You can even use this pattern to store each experiments' data in a different table if you wanted to.
+
+```ruby
+class CacheRecord < ActiveRecord::Base
+  self.abstract_class = true
+
+  connects_to database: { writing: :experiments }
+end
+
+class MyExperiment < ActiveExperiment::Base
+  use_cache_store :active_record, connection_class: CacheRecord
+end
+```
+
 ## Reporting
 
 Reporting is a core concept in Active Experiment. It allows for collecting data about experiments and variants, and can be used to track performance metrics, analyze results, and more.

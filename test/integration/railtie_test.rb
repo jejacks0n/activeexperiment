@@ -109,6 +109,10 @@ describe "the railtie" do
     assert_equal ReloadableRollout, after
   end
 
+  it "resolves a cache store named in the application config" do
+    assert_instance_of ActiveSupport::Cache::MemoryStore, ActiveExperiment::Base.cache_store
+  end
+
   it "sets the configuration options" do
     assert_equal Rails.application.secret_key_base,
       ActiveExperiment::Base.send(:digest_secret_key)
