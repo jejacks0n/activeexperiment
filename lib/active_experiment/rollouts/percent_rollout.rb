@@ -44,16 +44,26 @@ module ActiveExperiment
       def variant_for(experiment) # :nodoc:
         variants = experiment.variant_names
         crc = Zlib.crc32(experiment.run_key, 0)
-        total = 0
 
         case rules
-        when Array then variants[rules.find_index { |percent| crc % 100 < total += percent }]
-        when Hash then rules.find { |_, percent| crc % 100 < total += percent }.first
+        when Array then variants[bucket_index(crc, rules)]
+        when Hash then rules.keys[bucket_index(crc, rules.values)]
         else variants[crc % variants.length]
         end
       end
 
       private
+        # Determine which of the declared percentages the run key lands within.
+        #
+        # The percentages are widths, so 25, 30, 45 means the boundaries are at
+        # 25, 55 and 100.
+        def bucket_index(crc, percents)
+          position = crc % 100
+          boundary = 0
+
+          percents.find_index { |percent| position < boundary += percent }
+        end
+
         def validate!(experiment_class)
           variant_names = experiment_class.try(:variants)&.keys
           return if variant_names.blank?
@@ -63,7 +73,9 @@ module ActiveExperiment
             sum = rules.values.sum
             raise ArgumentError, "The provided rules total #{sum}%, but should be 100%" if sum != 100
 
-            diff = rules.keys - variant_names | variant_names - rules.keys
+            unexpected = rules.keys - variant_names
+            missing = variant_names - rules.keys
+            diff = unexpected | missing
             raise ArgumentError, "The provided rules don't match the variants: #{diff.join(", ")}" if diff.any?
           when Array
             sum = rules.sum
