@@ -97,7 +97,6 @@ module ActiveExperiment
         end
 
         def write_serialized_entry(key, payload, raw: false, unless_exist: false, expires_in: nil, race_condition_ttl: nil, pipeline: nil, **options)
-          # TODO: Support pipeline?
           failsafe :write_entry, returning: false do
             redis.then { |c| c.hset(*hkey(key), payload) }
           end

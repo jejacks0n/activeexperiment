@@ -5,7 +5,59 @@ require "active_support/log_subscriber"
 module ActiveExperiment
   # == Log Subscriber
   #
-  # TODO: finish documenting.
+  # Renders the instrumentation Active Experiment emits into logs.
+  #
+  # It's attached to the +active_experiment+ notification namespace when
+  # loaded, and serves as an example of how you can write a custom reporter.
+  #
+  # An experiment run logs when it starts and when it finishes, and anything
+  # notable in between:
+  #
+  #   MyExperiment[31bc574e]  Running my_experiment (Run ID: f2a9c6d6-cae7-...)
+  #   MyExperiment[31bc574e]  Segmented into the `red` variant (0.0ms)
+  #   MyExperiment[31bc574e]  Completed running red variant (Duration: 0.1ms | Allocations: 299)
+  #
+  # The prefix is the experiment class and the first 8 characters of its run
+  # key, which is what ties lines together when experiments are nested or
+  # several run in the same request.
+  #
+  # == Levels
+  #
+  # Roughly: +:info+ is the story of a run, +:debug+ fills in the callback
+  # chains, and anything above those would be something worth looking at.
+  #
+  # - +:error+ -- a run raised, or finished without resolving a variant, or
+  #   resolved one that isn't registered -- probably an issue.
+  # - +:warn+ -- an experiment was run inside another experiment's run. Nesting
+  #   isn't prevented, but it can be a sign of something to be documented.
+  # - +:info+ -- a run starting, the variant it completed with, a segment
+  #   assigning a variant, and a callback chain resolving one.
+  # - +:debug+ -- callback chains completing without resolving a variant.
+  #
+  # == Logging the Context
+  #
+  # Contexts are left out of the log by default, since they're often user
+  # records or anything else that identifies a subject. An experiment can opt
+  # in when its context is safe to write down:
+  #
+  #   class MyExperiment < ActiveExperiment::Base
+  #     self.log_context = true
+  #   end
+  #
+  # Which appends it to the line the run starts on:
+  #
+  #   MyExperiment[9432f43c]  Running my_experiment (Run ID: a13ea567-...) with context: {id: 1}
+  #
+  # == Replacing It
+  #
+  # The events are public, so this subscriber can be swapped for one that logs
+  # differently, or turned off without silencing the rest of the library:
+  #
+  #   ActiveExperiment::LogSubscriber.detach_from(:active_experiment)
+  #
+  # +ActiveExperiment::Instrumentation+ covers the events themselves, and the
+  # methods below are one per event if you want to see what each has to work
+  # with.
   class LogSubscriber < ActiveSupport::LogSubscriber
     # Run callbacks can only ever log at :debug -- the :info branch in
     # +build_callback_message+ excludes them by name -- so declaring it lets
