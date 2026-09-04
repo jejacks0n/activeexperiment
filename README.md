@@ -300,6 +300,21 @@ The following Active Experiment events are available for subscribers:
 
 In each of these events, the experiment instance is available in the `event.payload` hash.
 
+What gets sent is up to the experiment. `serialize` is the payload the example above reports, and it can be overridden to add whatever the reporting side needs to join on:
+
+```ruby
+class MyExperiment < ActiveExperiment::Base
+  variant(:red) { "red" }
+  variant(:blue) { "blue" }
+
+  def serialize
+    super.merge(account_id: context.account_id, plan: context.plan_name)
+  end
+end
+```
+
+By default it includes the experiment name, run id, run key, assigned variant, and whether the run was skipped.
+
 ## Experiments in views
 
 Experiments can be used in views, just like in any other part of your application. Sometimes though, you might want to render markup inside your run block too, and to do this, you'll need to "capture" the experiment.
