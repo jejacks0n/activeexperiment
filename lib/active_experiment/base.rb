@@ -9,6 +9,8 @@ require "active_experiment/callbacks"
 require "active_experiment/execution"
 require "active_experiment/instrumentation"
 require "active_experiment/logging"
+require "active_experiment/record_subscriber"
+require "active_experiment/recording"
 require "active_experiment/rollout"
 require "active_experiment/run_key"
 require "active_experiment/segments"
@@ -66,6 +68,7 @@ module ActiveExperiment
     include Execution
     include Instrumentation
     include Logging
+    include Recording
     include Rollout
     include RunKey
     include Segments

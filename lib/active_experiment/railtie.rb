@@ -28,6 +28,14 @@ module ActiveExperiment
   #   The default cache store experiments use when they don't specify one.
   #   Defaults to +:null_store+
   #
+  #     config.active_experiment.default_cache_store = :redis_cache
+  #
+  # [+default_recorder+]
+  #   The recorder experiments use when they don't specify one.
+  #   Defaults to +:null_recorder+
+  #
+  #     config.active_experiment.default_recorder = :active_record
+  #
   # [+default_variant+]
   #   The variant name treated as the default when a rollout doesn't assign
   #   one.
@@ -64,13 +72,9 @@ module ActiveExperiment
   #   logging.
   #   Defaults to +Rails.logger+
   #
-  #
   # Options are applied by sending each one to +ActiveExperiment+ or to
   # +ActiveExperiment::Base+, so an option that isn't listed here is ignored
-  # rather than raising. A few attributes happen to be reachable that way and
-  # aren't meant to be configured globally -- +cache_store+ and +rollout+ hold
-  # a store and a rollout rather than a name, and raise if given one, so use
-  # the +default_+ options above instead.
+  # rather than raising.
   class Railtie < Rails::Railtie # :nodoc:
     def self.default_digest_secret_key(app)
       app.secret_key_base

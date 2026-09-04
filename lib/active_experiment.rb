@@ -25,6 +25,7 @@ module ActiveExperiment
   autoload :Cache
   autoload :ConfiguredExperiment
   autoload :Executed
+  autoload :Recorders
   autoload :Rollouts
   autoload :Capturable
 

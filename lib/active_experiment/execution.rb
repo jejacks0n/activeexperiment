@@ -61,6 +61,9 @@ module ActiveExperiment
   module Execution
     extend ActiveSupport::Concern
 
+    NESTING_KEY = :active_experiment_running
+    private_constant :NESTING_KEY
+
     # These methods will be included into any Active Experiment object and
     # expose the class level run method, and the ability to get a configured
     # experiment instance using the set method.
@@ -120,7 +123,12 @@ module ActiveExperiment
 
       @results = nil
 
+      # Keep track of the current running experiment in case any are nested.
+      @nested_within = ActiveSupport::IsolatedExecutionState[NESTING_KEY]
+
       begin
+        ActiveSupport::IsolatedExecutionState[NESTING_KEY] = self
+
         # Scoped to the run rather than assigned outright the way Active Job
         # assigns its job: a job is the whole unit of work, but an experiment
         # runs inside one, often more than once. Setting it with a block puts
@@ -139,6 +147,7 @@ module ActiveExperiment
 
         @results
       ensure
+        ActiveSupport::IsolatedExecutionState[NESTING_KEY] = @nested_within
         Executed << self
       end
     end
