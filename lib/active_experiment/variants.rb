@@ -98,7 +98,10 @@ module ActiveExperiment
             raise ArgumentError, "Unable to override or add to unknown #{variant.inspect} variant"
           end
 
-          self.variants = variants.dup unless singleton_class.method_defined?(:variants, false)
+          # Copied so registering a variant on a subclass doesn't add it to its
+          # parent's variants. This attribute is inherited until a subclass
+          # overrides it with different variants.
+          self.variants = variants.dup
 
           variants[variant] = callback_chain = :"#{variant}#{VARIANT_CHAIN_SUFFIX}"
 

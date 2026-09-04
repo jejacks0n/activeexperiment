@@ -64,14 +64,18 @@ module ActiveExperiment
           percents.find_index { |percent| position < boundary += percent }
         end
 
+        # The percentages are checked even if the variants haven't been
+        # registered yet. The variant names can only be compared if they're
+        # registered, so it's best to specify your rollout strategy after
+        # registering your variants.
         def validate!(experiment_class)
           variant_names = experiment_class.try(:variants)&.keys
-          return if variant_names.blank?
 
           case rules
           when Hash
             sum = rules.values.sum
             raise ArgumentError, "The provided rules total #{sum}%, but should be 100%" if sum != 100
+            return if variant_names.blank?
 
             unexpected = rules.keys - variant_names
             missing = variant_names - rules.keys
@@ -80,6 +84,7 @@ module ActiveExperiment
           when Array
             sum = rules.sum
             raise ArgumentError, "The provided rules total #{sum}%, but should be 100%" if sum != 100
+            return if variant_names.blank?
 
             diff = rules.length - variant_names.length
             raise ArgumentError, "The provided rules don't match the number of variants" if diff != 0

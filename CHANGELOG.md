@@ -81,6 +81,9 @@ than the adapter's error.
 
 ### Fixed
 
+* Percent rollout percentages are validated even when the rollout is declared
+  above the variants.
+
 * `MyExperiment.clear_cache` no longer has the possibility to clear other
   experiments' entries.
 
