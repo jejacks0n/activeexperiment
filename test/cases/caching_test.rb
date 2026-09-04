@@ -117,10 +117,13 @@ class CachingTest < ActiveSupport::TestCase
   end
 
   test "assigning a store to the attribute is still allowed" do
+    original = SubjectExperiment.cache_store
     store = ActiveSupport::Cache::MemoryStore.new
     SubjectExperiment.cache_store = store
 
     assert_same store, SubjectExperiment.cache_store
+  ensure
+    SubjectExperiment.cache_store = original
   end
 
   class SubjectExperiment < ActiveExperiment::Base

@@ -58,10 +58,13 @@ class RolloutTest < ActiveSupport::TestCase
   end
 
   test "assigning a rollout to the attribute is still allowed" do
+    original = SubjectExperiment.rollout
     rollout = ActiveExperiment::Rollouts::BaseRollout.new(SubjectExperiment)
     SubjectExperiment.rollout = rollout
 
     assert_same rollout, SubjectExperiment.rollout
+  ensure
+    SubjectExperiment.rollout = original
   end
 
   class SubjectExperiment < ActiveExperiment::Base
