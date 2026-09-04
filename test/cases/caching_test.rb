@@ -126,6 +126,18 @@ class CachingTest < ActiveSupport::TestCase
     SubjectExperiment.cache_store = original
   end
 
+  test "counting the entries of a store that can't count them" do
+    experiment = Class.new(SubjectExperiment) do
+      def self.name = "UncountableExperiment"
+
+      use_cache_store :memory_store
+    end
+
+    error = assert_raises(ActiveExperiment::ExecutionError) { experiment.cache_size }
+
+    assert_match(/can't count the entries/, error.message)
+  end
+
   class SubjectExperiment < ActiveExperiment::Base
     variant(:red) { "red" }
     variant(:blue) { "blue" }

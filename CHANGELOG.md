@@ -69,6 +69,16 @@ than the adapter's error.
   handed back a bare String, which left callers rendering it raw. Templates
   already using `<%==` render identically and don't need changing.
 
+* Experiments can report how much they've cached:
+
+  ```ruby
+  MyExperiment.cache_size # => 4_111
+  ```
+
+  Cache size follows from how many distinct contexts actually reach an
+  experiment. The included cache stores provide this, but it may not exist in
+  other cache stores.
+
 ### Fixed
 
 * `MyExperiment.clear_cache` no longer has the possibility to clear other

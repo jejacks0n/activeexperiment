@@ -234,6 +234,25 @@ class ActiveRecordCacheStoreTestCase < ActiveSupport::TestCase
     assert_equal "blue", SubjectExperiment.run(id: 1)
   end
 
+  test "counting the entries for one experiment" do
+    SubjectExperiment.set(variant: :blue).cache_each([{ id: 1 }, { id: 2 }])
+    SubjectExperiment.cache_store.write("other_experiment:abc", :red)
+
+    assert_equal 3, SubjectExperiment.cache_store.length
+    assert_equal 2, SubjectExperiment.cache_size
+  end
+
+  test "counting the entries for an experiment whose name is a LIKE pattern" do
+    store = SubjectExperiment.cache_store
+    store.write("a%b:1", :red)
+    store.write("aZZb:1", :red)  # only an unescaped % would sweep this one in
+    store.write("c_d:1", :red)
+    store.write("cXd:1", :red)   # and only an unescaped _ would sweep this one
+
+    assert_equal 1, SubjectExperiment.cache_size("a%b")
+    assert_equal 1, SubjectExperiment.cache_size("c_d")
+  end
+
   test "writing to a table that's missing the unique index" do
     ActiveRecord::Base.connection.remove_index(TABLE_NAME, :key)
     store = ActiveExperiment::Cache::ActiveRecordCacheStore.new

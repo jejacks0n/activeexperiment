@@ -65,6 +65,32 @@ class RedisHashCacheStoreTest < ActiveSupport::TestCase
     assert_equal 3, experiment.cache_store.length(experiment.cache_key_prefix)
   end
 
+  test "counting the entries for one experiment" do
+    OtherCountedExperiment = Class.new(SubjectExperiment) do
+      def self.name = "OtherCountedExperiment"
+
+      # Re-declared because a subclass falls back to the inherited
+      # default_cache_store rather than the store the parent chose.
+      use_cache_store :redis_hash
+    end
+    3.times { |i| SubjectExperiment.run(id: i) }
+    OtherCountedExperiment.run(id: 1)
+
+    assert_equal 3, SubjectExperiment.cache_size
+    assert_equal 1, OtherCountedExperiment.cache_size
+  end
+
+  test "counting the entries for one experiment in a namespaced store" do
+    NamespacedCountExperiment = Class.new(SubjectExperiment) do
+      def self.name = "NamespacedCountExperiment"
+
+      use_cache_store :redis_hash, namespace: "_exp_"
+    end
+    2.times { |i| NamespacedCountExperiment.run(id: i) }
+
+    assert_equal 2, NamespacedCountExperiment.cache_size
+  end
+
   test "caching assigned variants" do
     experiment = SubjectExperiment.new
     experiment.set(variant: :blue)

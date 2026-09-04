@@ -71,6 +71,16 @@ module ActiveExperiment
     # so can't touch these, or +noeviction+, or give experiments their own
     # redis away from data that's expected to be evicted.
     class RedisHashCacheStore < ActiveSupport::Cache::RedisCacheStore
+      # The number of entries for a given experiment, which is the field count
+      # of the hash it keeps them in. Counterpart to +delete_matched+.
+      def count_matched(matcher, options = nil)
+        options = merged_options(options)
+
+        failsafe :count_matched do
+          redis.then { |c| c.hlen(namespace_key(matcher, options)) }
+        end
+      end
+
       def length(hkey = nil)
         if hkey
           failsafe :read_hlen do

@@ -132,6 +132,16 @@ module ActiveExperiment
         update(options, "DELETE FROM %<table>s")
       end
 
+      # The number of entries whose key starts with the given matcher, which is
+      # how an experiment counts its own entries without counting every other
+      # experiment's. Counterpart to +delete_matched+.
+      def count_matched(matcher, options = nil)
+        options = merged_options(options)
+
+        query(options, "SELECT COUNT(%<key>s) AS count FROM %<table>s WHERE %<key>s LIKE ? ESCAPE '#{LIKE_ESCAPE}'",
+          key_matcher(matcher, options)).first["count"]
+      end
+
       def delete_matched(matcher, options = nil)
         options = merged_options(options)
 

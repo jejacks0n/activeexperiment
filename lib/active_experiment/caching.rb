@@ -73,6 +73,16 @@ module ActiveExperiment
   # If the same experiment is run only on posts (or users), the cache potential
   # would be limited to 100.
   #
+  # Potential is the absolute max though, not the guaranteed size. What an
+  # experiment actually caches depends on the contexts that happen to be run
+  # for it, which is a property of where it's run -- and can be difficult to
+  # predict. You can check an experiment cache size by using:
+  #
+  #   MyExperiment.cache_size # => 4_111
+  #
+  # You could build a daily rollup for experiment cache sizes to help identify
+  # any experiments that might exceed your cache size limit before hitting it.
+  #
   # == Custom Cache Stores
   #
   # Custom cache stores can be created and registered, as long as they adhere
@@ -146,6 +156,32 @@ module ActiveExperiment
 
       def clear_cache(cache_key_prefix = nil)
         cache_store.delete_matched(cache_key_prefix || experiment_name)
+      end
+
+      # The number of entries this experiment has cached.
+      #
+      # Cache size is a real consideration for an experiment that runs on a
+      # combination of contexts, and it can only be measured, not predicted --
+      # the number of entries follows from how many distinct contexts actually
+      # reach the experiment, which the experiment can't know in advance.
+      #
+      #   MyExperiment.cache_size # => 1_048_576
+      #
+      # Both of the cache stores that ship with Active Experiment can answer
+      # this. Other stores generally can't, since counting a subset of keys
+      # isn't part of the +ActiveSupport::Cache::Store+ interface, and an
+      # +ExecutionError+ is raised for them.
+      def cache_size(cache_key_prefix = nil)
+        unless cache_store.respond_to?(:count_matched)
+          raise ExecutionError, <<~MESSAGE.squish
+            The #{cache_store.class} cache store can't count the entries for a
+            single experiment. Counting a subset of keys isn't part of the
+            cache store interface, so a store has to implement `count_matched`
+            to be asked.
+          MESSAGE
+        end
+
+        cache_store.count_matched(cache_key_prefix || experiment_name)
       end
 
       private

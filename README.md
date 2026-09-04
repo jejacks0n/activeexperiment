@@ -251,17 +251,13 @@ Two cache stores ship with the library: `:redis_hash`, which uses a Redis hash p
 
 Technically any `ActiveSupport::Cache::Store` will work too, as long as it can hold on to entries for as long as the experiment runs.
 
-Note: The experiment name is part of the run key and the cache key, so renaming an experiment class generates new run keys and cache keys, orphaning everything already cached for it.
-
-If a class has to move mid-experiment, you can keep the old name by specifying the `experiment_name` manually.
+You can get the size of an experiments cache by asking an experiment that has caching enabled using:
 
 ```ruby
-class NewCheckoutExperiment < ActiveExperiment::Base
-  def self.experiment_name
-    "checkout_experiment"
-  end
-end
+MyExperiment.cache_size # => 4211
 ```
+
+Both of the included cache stores count a single experiment's entries without walking the whole cache. Other stores probably raise an exception, since counting a subset of keys isn't part of the `ActiveSupport::Cache::Store` interface.
 
 The Active Record store can be pointed at a database other than the one `ActiveRecord::Base` is connected to. If you want to store experiment data in a database other than your primary, you can define a model and then use that as your `connection_class`. You can even use this pattern to store each experiments' data in a different table if you wanted to.
 
@@ -274,6 +270,16 @@ end
 
 class MyExperiment < ActiveExperiment::Base
   use_cache_store :active_record, connection_class: CacheRecord
+end
+```
+
+Note: The experiment name is part of the run key and the cache key, so renaming an experiment class generates new run keys and cache keys, orphaning everything already cached for it. If a class has to move mid-experiment, you can keep the old name by specifying the `experiment_name` manually.
+
+```ruby
+class NewCheckoutExperiment < ActiveExperiment::Base
+  def self.experiment_name
+    "checkout_experiment"
+  end
 end
 ```
 
