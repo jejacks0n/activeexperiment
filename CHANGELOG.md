@@ -82,7 +82,10 @@ than the adapter's error.
 ### Fixed
 
 * Percent rollout percentages are validated even when the rollout is declared
-  above the variants.
+  above the variants, and the variant names are checked on the first run when
+  they weren't registered in time to be checked at declaration. Rules naming a
+  variant that was never registered used to be accepted, and the subjects
+  assigned to it got `nil` results.
 
 * `MyExperiment.clear_cache` no longer has the possibility to clear other
   experiments' entries.

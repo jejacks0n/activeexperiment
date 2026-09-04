@@ -83,11 +83,11 @@ class PercentRolloutTest < ActiveSupport::TestCase
     assert_equal "The provided rules total 60%, but should be 100%", error.message
   end
 
-  test "the variant names aren't checked before the variants are registered" do
-    # Nothing to compare them to yet, so a rollout that names an unregistered
-    # variant is still accepted here -- only the percentages are checked.
+  test "the variant names are checked on the first run when the rollout is declared first" do
+    # Nothing to compare them against at declaration, so the check waits until
+    # a variant is being assigned and there is.
     experiment = Class.new(ActiveExperiment::Base) do
-      def self.name = "UncheckedNamesExperiment"
+      def self.name = "DeferredNamesExperiment"
 
       use_rollout :percent, rules: { red: 50, purple: 50 }
       variant(:red) { "red" }
@@ -95,6 +95,34 @@ class PercentRolloutTest < ActiveSupport::TestCase
     end
 
     assert_instance_of ActiveExperiment::Rollouts::PercentRollout, experiment.rollout
+
+    error = assert_raises(ArgumentError) { experiment.run(id: 1) }
+
+    assert_equal "The provided rules don't match the variants: purple, blue", error.message
+  end
+
+  test "the deferred check keeps raising rather than only failing once" do
+    experiment = Class.new(ActiveExperiment::Base) do
+      def self.name = "RepeatedlyDeferredExperiment"
+
+      use_rollout :percent, rules: { red: 50, purple: 50 }
+      variant(:red) { "red" }
+      variant(:blue) { "blue" }
+    end
+
+    3.times { |i| assert_raises(ArgumentError) { experiment.run(id: i) } }
+  end
+
+  test "a rollout declared before the variants runs when the rules do match" do
+    experiment = Class.new(ActiveExperiment::Base) do
+      def self.name = "DeferredValidExperiment"
+
+      use_rollout :percent, rules: { red: 100, blue: 0 }
+      variant(:red) { "red" }
+      variant(:blue) { "blue" }
+    end
+
+    assert_equal "red", experiment.run(id: 1)
   end
 
   test "validations are run for the percentage sum on arrays" do

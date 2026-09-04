@@ -38,10 +38,15 @@ module ActiveExperiment
       def initialize(experiment_class, ...) # :nodoc:
         super
 
-        validate!(experiment_class)
+        @variant_names_validated = validate!(experiment_class)
       end
 
       def variant_for(experiment) # :nodoc:
+        # Checked again only when the variants weren't registered in time to
+        # be compared against. By the time a variant is being assigned they
+        # are, and after that this costs an ivar read.
+        @variant_names_validated ||= validate!(experiment.class)
+
         variants = experiment.variant_names
         crc = Zlib.crc32(experiment.run_key, 0)
 
@@ -67,7 +72,11 @@ module ActiveExperiment
         # The percentages are checked even if the variants haven't been
         # registered yet. The variant names can only be compared if they're
         # registered, so it's best to specify your rollout strategy after
-        # registering your variants.
+        # registering your variants -- when it's specified first, the names
+        # are checked on the first run instead.
+        #
+        # Returns whether the names were compared, so the caller knows whether
+        # that still has to happen.
         def validate!(experiment_class)
           variant_names = experiment_class.try(:variants)&.keys
 
@@ -75,7 +84,7 @@ module ActiveExperiment
           when Hash
             sum = rules.values.sum
             raise ArgumentError, "The provided rules total #{sum}%, but should be 100%" if sum != 100
-            return if variant_names.blank?
+            return false if variant_names.blank?
 
             unexpected = rules.keys - variant_names
             missing = variant_names - rules.keys
@@ -84,13 +93,15 @@ module ActiveExperiment
           when Array
             sum = rules.sum
             raise ArgumentError, "The provided rules total #{sum}%, but should be 100%" if sum != 100
-            return if variant_names.blank?
+            return false if variant_names.blank?
 
             diff = rules.length - variant_names.length
             raise ArgumentError, "The provided rules don't match the number of variants" if diff != 0
           else
             raise ArgumentError unless rules.nil?
           end
+
+          true
         end
 
         def rules
