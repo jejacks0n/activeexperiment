@@ -30,6 +30,7 @@ class ExecutedTest < ActiveSupport::TestCase
           "run_id" => "1fbde0db",
           "run_key" => "32977ecb981cc727be359d0a688180cf822b1f6ba15680db6cad82d349e250a2",
           "variant" => "blue",
+          "variant_source" => "preset",
           "skipped" => false,
         }
       }
@@ -49,6 +50,7 @@ class ExecutedTest < ActiveSupport::TestCase
           "run_id" => "1fbde0db",
           "run_key" => "cf50425bc514577c720ff7ee9fc21f4b4162699e7f4ba5119abb5381efc4588b",
           "variant" => "red",
+          "variant_source" => "rollout",
           "skipped" => false,
         },
         {
@@ -56,6 +58,7 @@ class ExecutedTest < ActiveSupport::TestCase
           "run_id" => "1fbde0db",
           "run_key" => "32977ecb981cc727be359d0a688180cf822b1f6ba15680db6cad82d349e250a2",
           "variant" => "blue",
+          "variant_source" => "preset",
           "skipped" => false,
         }
       ]

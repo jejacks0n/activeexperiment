@@ -144,15 +144,34 @@ module ActiveExperiment
     end
 
     private
+      # Resolves the variant, and understands how it was resolved.
       def resolve_variant
-        return variant || default_variant if skipped?
-
-        resolved = cached_variant(variant) do
-          run_callbacks(:segment, :process_segment_callbacks)
-          variant || rollout.variant_for(self)
+        if skipped?
+          @variant_source = variant ? :preset : :skipped
+          return variant || default_variant
         end
 
-        variant || resolved || default_variant
+        @variant_source = variant ? :preset : :cached
+
+        resolved = cached_variant(variant) do
+          @variant_source = :rollout
+          run_callbacks(:segment, :process_segment_callbacks)
+          if variant
+            @variant_source = :segment
+            variant
+          else
+            rollout.variant_for(self)
+          end
+        end
+
+        if variant
+          variant
+        elsif resolved
+          resolved
+        else
+          @variant_source = :default
+          default_variant
+        end
       end
 
       def resolve_results

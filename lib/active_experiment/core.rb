@@ -51,6 +51,25 @@ module ActiveExperiment
     # resolved by segment rules or asking the rollout.
     attr_reader :variant
 
+    # How the assigned variant was determined.
+    #
+    # This is assigned when an experiment is run, and is +nil+ until then.
+    # Knowing which variant was assigned only tells us what to do, not how we
+    # got there. Keeping track of the variant provenance gives us insight into
+    # the difference between a rollout that stopped assigning anything and an
+    # experiment that's segmenting everyone into the same variant.
+    #
+    # One of:
+    #
+    # * +:preset+ -- provided before the run, through +set(variant:)+.
+    # * +:skipped+ -- the run was skipped, so the default variant was used.
+    # * +:cached+ -- read back from the cache store.
+    # * +:segment+ -- a segment rule assigned it.
+    # * +:rollout+ -- the rollout assigned it.
+    # * +:default+ -- nothing assigned, so the default variant was used.
+    #   (generally means the rollout might not be working correctly)
+    attr_reader :variant_source
+
     # Experiment options.
     #
     # Generally not used within the core library, this is provided to expose
@@ -173,6 +192,7 @@ module ActiveExperiment
         run_id: run_id,
         run_key: run_key,
         variant: variant,
+        variant_source: variant_source,
         skipped: skipped?
       }
     end
