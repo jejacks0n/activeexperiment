@@ -25,6 +25,51 @@ module ActiveExperiment
     #
     #     use_cache_store :redis_hash
     #   end
+    #
+    # == Connecting
+    #
+    # Anything passed along with the store name is handed to
+    # +ActiveSupport::Cache::RedisCacheStore+, so the connection is configured
+    # the same way Rails configures its own Redis cache. Point it at a server
+    # with a url:
+    #
+    #   use_cache_store :redis_hash, url: ENV["EXPERIMENT_REDIS_URL"]
+    #
+    # Or hand it a connection directly, or a proc that builds one, which defers
+    # connecting until the store is first used:
+    #
+    #   use_cache_store :redis_hash, redis: -> { Redis.new(url: ...) }
+    #
+    # Connections are pooled by default, and the pool is configured the way it
+    # is for any of the Rails cache stores:
+    #
+    #   use_cache_store :redis_hash, url: ..., pool: { size: 5, timeout: 5 }
+    #
+    # With nothing passed it connects to redis on localhost, which is only
+    # really useful in development. Because assignments have to survive for the
+    # life of the experiment, it's worth considering whether they belong on the
+    # same server as the rest of the application's caching -- see below.
+    #
+    # == Entries Never Expire
+    #
+    # Redis expiry is per key, and this store keeps the entire experiment in
+    # one hash, so there's nowhere to have a TTL on an individual assignment.
+    # That's deliberate -- an assignment that expires mid experiment wouldn't
+    # be stable. Entries live, and should live until the experiment is cleaned
+    # up with +MyExperiment.clear_cache+.
+    #
+    # So +expires_in+ and +race_condition_ttl+ are accepted and ignored, as is
+    # +unless_exist+.
+    #
+    # Make sure that the server itself is configured correctly, because its
+    # eviction policy has to leave these entries alone as well. Under an
+    # +allkeys-lru+ or +allkeys-random+ +maxmemory-policy+, redis will evict
+    # experiment hashes under memory pressure like anything else, and every
+    # evicted subject is reassigned from scratch on its next run.
+    #
+    # Use a +volatile-*+ policy, which only evicts keys that have a TTL set and
+    # so can't touch these, or +noeviction+, or give experiments their own
+    # redis away from data that's expected to be evicted.
     class RedisHashCacheStore < ActiveSupport::Cache::RedisCacheStore
       def length(hkey = nil)
         if hkey
