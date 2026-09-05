@@ -153,6 +153,8 @@ class ActiveRecordRecorderTestCase < ActiveSupport::TestCase
     assert_equal SubjectExperiment.name, recorded[:class_name]
     assert_equal [:red, :blue], recorded[:variant_names]
     assert_equal :red, recorded[:default_variant]
+    assert_equal :percent, recorded[:rollout][:type].to_sym
+    assert_equal({ red: 25.0, blue: 75.0 }, recorded[:rollout][:distribution])
     assert_equal :running, recorded[:state]
     assert_not_nil recorded[:first_seen_at]
   end

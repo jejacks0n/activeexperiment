@@ -110,14 +110,13 @@ class RecordingTest < ActiveSupport::TestCase
     assert_equal [:red, :blue], described[:variant_names]
     assert_equal :red, described[:default_variant]
     assert_equal "ActiveSupport::Cache::NullStore", described[:cache_store]
+    assert_equal({ red: 25.0, blue: 75.0 }, described[:rollout][:distribution])
   end
 
   test "describing an experiment whose rollout can't describe itself" do
-    # Which is every rollout, for now -- nothing implements `describe` yet, and
-    # the registry records whatever a rollout can say about itself, including
-    # nothing. An experiment can use anything responding to `skipped_for` and
-    # `variant_for` as its rollout, so it always has to be allowed to say
-    # nothing.
+    # An experiment can use anything responding to `skipped_for` and
+    # `variant_for` as its rollout, including itself, so a rollout always has
+    # to be allowed to say nothing about how it distributes.
     UndescribableExperiment.recorder = @recorder
     UndescribableExperiment.run(id: 1)
     @recorder.flush!
