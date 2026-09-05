@@ -222,6 +222,16 @@ module ActiveExperiment
 
     private
       def cached_variant(variant, &block)
+        # A dry run reads what's already cached, but never writes to the cache.
+        # Since +fetch+ writes on a miss, asking an experiment what it would
+        # assign for a context would otherwise be enough to assign it.
+        if @dry_run
+          cached = cache_store.read(self)
+          return cached if cached
+
+          return variant || block&.call
+        end
+
         cache_store.fetch(self, skip_nil: true) { variant || block&.call }
       end
   end

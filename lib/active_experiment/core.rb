@@ -116,6 +116,7 @@ module ActiveExperiment
       @context = context
       @name = self.class.experiment_name
       @options = {}
+      @dry_run = false
 
       # Not for the value, which is memoized for the run key to digest later,
       # but for the check it performs: this is where a context that can't be

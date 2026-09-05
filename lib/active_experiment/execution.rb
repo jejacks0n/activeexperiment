@@ -101,6 +101,14 @@ module ActiveExperiment
       def set(**options)
         ConfiguredExperiment.new(self, **options)
       end
+
+      # Instantiates an experiment with the given context and explains what it
+      # would assign, without assigning it. See +explain+ below.
+      #
+      #   MyExperiment.explain(context)
+      def explain(*args, **kws)
+        new(*args, **kws).explain
+      end
     end
 
     # Runs the experiment. Calling +run+ returns the value of the assigned
@@ -155,6 +163,48 @@ module ActiveExperiment
         ActiveSupport::IsolatedExecutionState[NESTING_KEY] = @nested_within
         Executed << self
       end
+    end
+
+    # Works out what this experiment would assign for its context, without
+    # assigning it.
+    #
+    # Answering "why did this subject get that variant?" otherwise means
+    # running the experiment, which caches the assignment, records the run, and
+    # runs whatever the variant does, like rendering a partial or issuing a
+    # redirect.
+    #
+    # So an explanation resolves the variant the same way a run does, without
+    # writing anything to the cache, without recorded anything, and with calling
+    # any of the variant steps. The experiment is also not added to
+    # ActiveExperiment::Executed:
+    #
+    #   MyExperiment.new(context).explain
+    #   # => { variant: :red, variant_source: :cached, ... }
+    #
+    # Segment rules do run and so does the rollout, but both are generally
+    # expected to be free of side effects.
+    #
+    # Raises an ActiveExperiment::ExecutionError if there are no variants
+    # registered.
+    def explain
+      raise ExecutionError, "No variants registered" if variant_names.empty?
+
+      @dry_run = true
+      variant = resolve_variant
+
+      {
+        experiment: name,
+        run_key: run_key,
+        cache_key: cache_key,
+        variant: variant,
+        variant_source: variant_source,
+        variants: variant_names,
+        default_variant: default_variant,
+        skipped: skipped_run?,
+        state: self.class.state
+      }
+    ensure
+      @dry_run = false
     end
 
     private
