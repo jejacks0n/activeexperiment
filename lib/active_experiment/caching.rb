@@ -154,8 +154,39 @@ module ActiveExperiment
         @default_cache_store = name_or_cache_store
       end
 
-      def clear_cache(cache_key_prefix = nil)
-        cache_store.delete_matched(cache_key_prefix || experiment_name)
+      # Removes every assignment this experiment has cached.
+      #
+      # This is a single statement by default, which is fine for a modest cache
+      # but a poor idea for one with millions of entries. On the Active Record
+      # store it's one unbounded +DELETE+ that holds a transaction open for as
+      # long as it takes.
+      #
+      # Passing +batch_size+ deletes in chunks instead, and yields the size of
+      # each chunk along with the running total, so a long clear can report on
+      # itself:
+      #
+      #   MyExperiment.clear_cache(batch_size: 1_000) do |deleted, total|
+      #     puts "cleared #{total}"
+      #   end
+      #
+      # Returns the number of entries deleted when batching. A store that can't
+      # delete in batches raises an +ExecutionError+ instead of quietly doing
+      # it in one statement.
+      def clear_cache(cache_key_prefix = nil, batch_size: nil, &progress)
+        matcher = cache_key_prefix || experiment_name
+        return cache_store.delete_matched(matcher) unless batch_size
+
+        unless cache_store.respond_to?(:delete_matched_in_batches)
+          raise ExecutionError, <<~MESSAGE.squish
+            The #{cache_store.class} cache store can't delete entries in
+            batches. Deleting a subset of keys at all isn't part of the cache
+            store interface, so a store has to implement
+            `delete_matched_in_batches` to be asked. Clear it without
+            `batch_size` to delete in one statement.
+          MESSAGE
+        end
+
+        cache_store.delete_matched_in_batches(matcher, batch_size: batch_size, &progress)
       end
 
       # The number of entries this experiment has cached.

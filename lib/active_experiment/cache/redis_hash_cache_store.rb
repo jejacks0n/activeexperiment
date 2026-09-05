@@ -81,6 +81,18 @@ module ActiveExperiment
         end
       end
 
+      # This is here so +clear_cache(batch_size:)+ behaves the same way
+      # whichever store an experiment uses. There's nothing to batch, since
+      # every assignment for an experiment lives in one hash, so clearing it is
+      # a single +DEL+ of that key however many fields it holds.
+      def delete_matched_in_batches(matcher, batch_size: nil, options: nil)
+        deleted = count_matched(matcher, options)
+        delete_matched(matcher, options)
+
+        yield(deleted, deleted) if block_given? && deleted.positive?
+        deleted
+      end
+
       def length(hkey = nil)
         if hkey
           failsafe :read_hlen do
