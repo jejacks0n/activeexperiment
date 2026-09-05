@@ -98,7 +98,10 @@ module ActiveExperiment
             raise ArgumentError, "Unable to override or add to unknown #{variant.inspect} variant"
           end
 
-          self.variants = variants.dup unless singleton_class.method_defined?(:variants, false)
+          # Copied so registering a variant on a subclass doesn't add it to its
+          # parent's variants. This attribute is inherited until a subclass
+          # overrides it with different variants.
+          self.variants = variants.dup
 
           variants[variant] = callback_chain = :"#{variant}#{VARIANT_CHAIN_SUFFIX}"
 
@@ -109,6 +112,12 @@ module ActiveExperiment
 
           filters.push(block) if block.present?
           filters.unshift(callback_chain) if filters.empty?
+          # Steps put their value on the experiment instead of returning it,
+          # because Active Support discards whatever a callback returns.
+          #
+          # Each step overwrites the last, so the value of a chain is whatever
+          # its final step left, and a step returning nil clears what came
+          # before it.
           set_callback_with_target("#{callback_chain}#{STEP_CHAIN_SUFFIX}", *filters, **options) do |target, callback|
             target.instance_variable_set(:@results, callback.call(target, nil))
           end
@@ -138,6 +147,11 @@ module ActiveExperiment
       def variant_step_chains
         @variant_step_chains ||= variants.transform_values do |callback_chain|
           chain_name = "#{callback_chain}#{STEP_CHAIN_SUFFIX}"
+          # Steps are registered as before callbacks, so they've all run by the
+          # time this block does, and +@results+ holds the last steps value --
+          # see where it's written in +register_variant_callback+.
+          # The block is how the chain reports that value, since running the
+          # chain doesn't produce one.
           -> { run_callbacks(chain_name, :process_variant_steps) { @results } }
         end
       end

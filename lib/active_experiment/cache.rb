@@ -3,7 +3,8 @@
 module ActiveExperiment
   # == Cache Stores
   #
-  # TODO: finish documenting.
+  # Read more about caching in ActiveExperiment::Caching
+  #
   module Cache
     extend ActiveSupport::Autoload
 

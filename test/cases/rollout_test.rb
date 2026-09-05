@@ -48,6 +48,25 @@ class RolloutTest < ActiveSupport::TestCase
 
   ActiveExperiment::Rollouts.register(:custom, CustomRollout)
 
+  test "assigning the name of a rollout to the attribute that holds one" do
+    error = assert_raises(ArgumentError) do
+      SubjectExperiment.rollout = :percent
+    end
+
+    assert_match(/default_rollout = :percent/, error.message)
+    assert_match(/use_rollout :percent/, error.message)
+  end
+
+  test "assigning a rollout to the attribute is still allowed" do
+    original = SubjectExperiment.rollout
+    rollout = ActiveExperiment::Rollouts::BaseRollout.new(SubjectExperiment)
+    SubjectExperiment.rollout = rollout
+
+    assert_same rollout, SubjectExperiment.rollout
+  ensure
+    SubjectExperiment.rollout = original
+  end
+
   class SubjectExperiment < ActiveExperiment::Base
     control { "control" }
     variant(:treatment) { "treatment" }

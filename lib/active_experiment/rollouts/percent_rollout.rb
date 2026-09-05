@@ -38,42 +38,70 @@ module ActiveExperiment
       def initialize(experiment_class, ...) # :nodoc:
         super
 
-        validate!(experiment_class)
+        @variant_names_validated = validate!(experiment_class)
       end
 
       def variant_for(experiment) # :nodoc:
+        # Checked again only when the variants weren't registered in time to
+        # be compared against. By the time a variant is being assigned they
+        # are, and after that this costs an ivar read.
+        @variant_names_validated ||= validate!(experiment.class)
+
         variants = experiment.variant_names
         crc = Zlib.crc32(experiment.run_key, 0)
-        total = 0
 
         case rules
-        when Array then variants[rules.find_index { |percent| crc % 100 < total += percent }]
-        when Hash then rules.find { |_, percent| crc % 100 < total += percent }.first
+        when Array then variants[bucket_index(crc, rules)]
+        when Hash then rules.keys[bucket_index(crc, rules.values)]
         else variants[crc % variants.length]
         end
       end
 
       private
+        # Determine which of the declared percentages the run key lands within.
+        #
+        # The percentages are widths, so 25, 30, 45 means the boundaries are at
+        # 25, 55 and 100.
+        def bucket_index(crc, percents)
+          position = crc % 100
+          boundary = 0
+
+          percents.find_index { |percent| position < boundary += percent }
+        end
+
+        # The percentages are checked even if the variants haven't been
+        # registered yet. The variant names can only be compared if they're
+        # registered, so it's best to specify your rollout strategy after
+        # registering your variants -- when it's specified first, the names
+        # are checked on the first run instead.
+        #
+        # Returns whether the names were compared, so the caller knows whether
+        # that still has to happen.
         def validate!(experiment_class)
           variant_names = experiment_class.try(:variants)&.keys
-          return if variant_names.blank?
 
           case rules
           when Hash
             sum = rules.values.sum
             raise ArgumentError, "The provided rules total #{sum}%, but should be 100%" if sum != 100
+            return false if variant_names.blank?
 
-            diff = rules.keys - variant_names | variant_names - rules.keys
+            unexpected = rules.keys - variant_names
+            missing = variant_names - rules.keys
+            diff = unexpected | missing
             raise ArgumentError, "The provided rules don't match the variants: #{diff.join(", ")}" if diff.any?
           when Array
             sum = rules.sum
             raise ArgumentError, "The provided rules total #{sum}%, but should be 100%" if sum != 100
+            return false if variant_names.blank?
 
             diff = rules.length - variant_names.length
             raise ArgumentError, "The provided rules don't match the number of variants" if diff != 0
           else
             raise ArgumentError unless rules.nil?
           end
+
+          true
         end
 
         def rules

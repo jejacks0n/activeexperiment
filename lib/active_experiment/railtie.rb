@@ -4,6 +4,73 @@ require "global_id/railtie"
 require "active_experiment"
 
 module ActiveExperiment
+  # == Railtie
+  #
+  # Sets Active Experiment up inside a Rails application, and provides the
+  # +config.active_experiment+ options below. They can be set anywhere the rest
+  # of the application config is -- +config/application.rb+, or a per
+  # environment file.
+  #
+  # === Configuration Options
+  #
+  # [+custom_rollouts+]
+  #   A hash of rollouts to register on boot.
+  #   Defaults to +{}+
+  #
+  #     config.active_experiment.custom_rollouts = { feature_flag: "FeatureFlagRollout" }
+  #
+  # [+default_rollout+]
+  #   The rollout experiments use when they don't specify one, by name or as an
+  #   instance.
+  #   Defaults to +:percent+
+  #
+  # [+default_cache_store+]
+  #   The default cache store experiments use when they don't specify one.
+  #   Defaults to +:null_store+
+  #
+  # [+default_variant+]
+  #   The variant name treated as the default when a rollout doesn't assign
+  #   one.
+  #   Defaults to +:control+.
+  #
+  # [+digest_secret_key+]
+  #   Salts the run key digest.
+  #   Defaults to the application's +secret_key_base+, +nil+ if there isn't one
+  #   (changing this will invalidate all run/cache keys)
+  #
+  # [+digest_bit_length+]
+  #   The SHA2 bit length used for run keys -- 256, 384, or 512.
+  #   Defaults to +256+
+  #   (changing this will invalidate all run/cache keys)
+  #
+  # [+unsafe_context_digest+]
+  #   Allows contexts with objects that can't be identified stably by their
+  #   +inspect+ output instead of raising.
+  #   Defaults to +false+.
+  #   See +ActiveExperiment::RunKey+ for why that's unsafe.
+  #
+  # [+log_context+]
+  #   Whether the log subscriber includes experiment contexts in its output.
+  #   Defaults to +false+
+  #
+  # [+log_query_tags_around_run+]
+  #   Register the +:experiment+ query log tag, which attributes queries made
+  #   during an experiment run to the experiment.
+  #   Defaults to +true+
+  #   (requires +config.active_record.query_log_tags_enabled+ to be on as well)
+  #
+  # [+logger+]
+  #   The logger Active Experiment writes to. Setting it to +nil+ turns off
+  #   logging.
+  #   Defaults to +Rails.logger+
+  #
+  #
+  # Options are applied by sending each one to +ActiveExperiment+ or to
+  # +ActiveExperiment::Base+, so an option that isn't listed here is ignored
+  # rather than raising. A few attributes happen to be reachable that way and
+  # aren't meant to be configured globally -- +cache_store+ and +rollout+ hold
+  # a store and a rollout rather than a name, and raise if given one, so use
+  # the +default_+ options above instead.
   class Railtie < Rails::Railtie # :nodoc:
     def self.default_digest_secret_key(app)
       app.secret_key_base
@@ -58,9 +125,13 @@ module ActiveExperiment
         app.config.active_record.query_log_tags |= [:experiment]
 
         ActiveSupport.on_load(:active_record) do
-          ActiveRecord::QueryLogs.taggings[:experiment] = lambda do |context|
-            context[:experiment].class.name if context[:experiment]
-          end
+          # Assigned rather than mutated: the taggings hash is frozen, both as
+          # its default and again on every assignment, so +[]=+ raises. Merging
+          # either way around leaves both this tagging and Active Record's own
+          # in place, so it doesn't matter which of us registers first.
+          ActiveRecord::QueryLogs.taggings = ActiveRecord::QueryLogs.taggings.merge(
+            experiment: ->(context) { context[:experiment]&.class&.name }
+          )
         end
       end
     end

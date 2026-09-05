@@ -119,30 +119,59 @@ module ActiveExperiment
       raise ExecutionError, "No variants registered" if variant_names.empty?
 
       @results = nil
-      instrument(:start_experiment)
-      instrument(:process_run) do
-        run_callbacks(:run, :process_run_callbacks) do
-          call_run_block(&block) if block.present?
-          @variant = resolve_variant
-          @results = resolve_results
-        end
-      end
 
-      @results
-    ensure
-      Executed << self
+      begin
+        # Scoped to the run rather than assigned outright the way Active Job
+        # assigns its job: a job is the whole unit of work, but an experiment
+        # runs inside one, often more than once. Setting it with a block puts
+        # back whatever was there before, so queries after the run aren't still
+        # attributed to it, and a nested experiment hands the outer one back.
+        ActiveSupport::ExecutionContext.set(experiment: self) do
+          instrument(:start_experiment)
+          instrument(:process_run) do
+            run_callbacks(:run, :process_run_callbacks) do
+              call_run_block(&block) if block.present?
+              @variant = resolve_variant
+              @results = resolve_results
+            end
+          end
+        end
+
+        @results
+      ensure
+        Executed << self
+      end
     end
 
     private
+      # Resolves the variant, and understands how it was resolved.
       def resolve_variant
-        return variant || default_variant if skipped?
-
-        resolved = cached_variant(variant) do
-          run_callbacks(:segment, :process_segment_callbacks)
-          variant || rollout.variant_for(self)
+        if skipped?
+          @variant_source = variant ? :preset : :skipped
+          return variant || default_variant
         end
 
-        variant || resolved || default_variant
+        @variant_source = variant ? :preset : :cached
+
+        resolved = cached_variant(variant) do
+          @variant_source = :rollout
+          run_callbacks(:segment, :process_segment_callbacks)
+          if variant
+            @variant_source = :segment
+            variant
+          else
+            rollout.variant_for(self)
+          end
+        end
+
+        if variant
+          variant
+        elsif resolved
+          resolved
+        else
+          @variant_source = :default
+          default_variant
+        end
       end
 
       def resolve_results

@@ -168,6 +168,8 @@ class FeatureFlagRollout < ActiveExperiment::Rollouts::BaseRollout
 end
 ```
 
+Note: `register_as` only takes effect once this file/class has been loaded, which is fine for a rollout that's defined in an initializer or something. In the development environment though, nothing loads it until something references it -- register those by name, as below.
+
 This rollout can now be used the same way the built-in rollouts are:
 
 ```ruby
@@ -180,12 +182,27 @@ class MyExperiment < ActiveExperiment::Base
 end
 ```
 
-Custom rollouts can be registered to autoload as well, so they're only loaded when needed:
+Custom rollouts can be registered by name, so they're only loaded when needed:
+
+```ruby
+ActiveExperiment::Rollouts.register(:feature_flag, "FeatureFlagRollout")
+```
+
+Nothing has to be loaded to register one, so it can go in an initializer -- where autoloading isn't available yet.
+
+Rollouts can also be named in the application config, which is registered on boot:
+
+```ruby
+# config/application.rb
+config.active_experiment.custom_rollouts = { feature_flag: "FeatureFlagRollout" }
+```
+
+A rollout that isn't somewhere Rails autoloads from can be registered with a `Pathname` to it instead:
 
 ```ruby
 ActiveExperiment::Rollouts.register(
-  :feature_flag, 
-  "lib/feature_flag_rollout.rb"
+  :feature_flag,
+  Rails.root.join("lib/feature_flag_rollout.rb")
 )
 ```
 
@@ -205,6 +222,64 @@ class MyExperiment < ActiveExperiment::Base
   end
   
   use_rollout self
+end
+```
+
+## Caching
+
+Experiments don't cache by default, so a variant is resolved on every run. That's fine until the answer can change -- a segment rule like `context.created_at < 1.week.ago` puts a subject in one variant this week and another next week. That's when caching the assignment can come in handy, and can keep assignment stable for the life of the experiment.
+
+Set a store on an experiment:
+
+```ruby
+class MyExperiment < ActiveExperiment::Base
+  variant(:red) { "red" }
+  variant(:blue) { "blue" }
+
+  use_cache_store :redis_hash
+end
+```
+
+Or for all of them, on the class or through the application config:
+
+```ruby
+ActiveExperiment::Base.default_cache_store = :redis_hash
+config.active_experiment.default_cache_store = :redis_hash
+```
+
+Two cache stores ship with the library: `:redis_hash`, which uses a Redis hash per experiment, and `:active_record`, which needs a table -- see `ActiveExperiment::Cache::ActiveRecordCacheStore` for the migration.
+
+Technically any `ActiveSupport::Cache::Store` will work too, as long as it can hold on to entries for as long as the experiment runs.
+
+You can get the size of an experiments cache by asking an experiment that has caching enabled using:
+
+```ruby
+MyExperiment.cache_size # => 4211
+```
+
+Both of the included cache stores count a single experiment's entries without walking the whole cache. Other stores probably raise an exception, since counting a subset of keys isn't part of the `ActiveSupport::Cache::Store` interface.
+
+The Active Record store can be pointed at a database other than the one `ActiveRecord::Base` is connected to. If you want to store experiment data in a database other than your primary, you can define a model and then use that as your `connection_class`. You can even use this pattern to store each experiments' data in a different table if you wanted to.
+
+```ruby
+class CacheRecord < ActiveRecord::Base
+  self.abstract_class = true
+
+  connects_to database: { writing: :experiments }
+end
+
+class MyExperiment < ActiveExperiment::Base
+  use_cache_store :active_record, connection_class: CacheRecord
+end
+```
+
+Note: The experiment name is part of the run key and the cache key, so renaming an experiment class generates new run keys and cache keys, orphaning everything already cached for it. If a class has to move mid-experiment, you can keep the old name by specifying the `experiment_name` manually.
+
+```ruby
+class NewCheckoutExperiment < ActiveExperiment::Base
+  def self.experiment_name
+    "checkout_experiment"
+  end
 end
 ```
 
@@ -243,6 +318,21 @@ The following Active Experiment events are available for subscribers:
 
 In each of these events, the experiment instance is available in the `event.payload` hash.
 
+What gets sent is up to the experiment. `serialize` is the payload the example above reports, and it can be overridden to add whatever the reporting side needs to join on:
+
+```ruby
+class MyExperiment < ActiveExperiment::Base
+  variant(:red) { "red" }
+  variant(:blue) { "blue" }
+
+  def serialize
+    super.merge(account_id: context.account_id, plan: context.plan_name)
+  end
+end
+```
+
+By default it includes the experiment name, run id, run key, assigned variant, and whether the run was skipped.
+
 ## Experiments in views
 
 Experiments can be used in views, just like in any other part of your application. Sometimes though, you might want to render markup inside your run block too, and to do this, you'll need to "capture" the experiment.
@@ -264,7 +354,7 @@ end
 <summary>Expand HAML example</summary>
 
 ```haml
-!= MyExperiment.set(capture: self).run(current_user) do |experiment|
+= MyExperiment.set(capture: self).run(current_user) do |experiment|
   %div.container
     = experiment.on(:red) do
       %button.red-pill Red
@@ -277,7 +367,7 @@ end
 <summary>Expand ERB example</summary>
 
 ```erb
-<%== MyExperiment.set(capture: self).run(current_user) do |experiment| %>
+<%= MyExperiment.set(capture: self).run(current_user) do |experiment| %>
   <div class="container">
     <%= experiment.on(:red) do %>
       <button class="red-pill">Red</button>

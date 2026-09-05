@@ -29,6 +29,22 @@ module ActiveExperiment
   #
   #   ActiveExperiment::Base.unsafe_context_digest = true
   #
+  # The experiment name is part of the run key and the cache key, so renaming
+  # an experiment class generates new run keys and cache keys, orphaning
+  # everything already cached for it.
+  #
+  # If a class has to move mid-experiment, you can keep the old name by
+  # specifying the `experiment_name` manually.
+  #
+  #   class NewCheckoutExperiment < ActiveExperiment::Base
+  #     def self.experiment_name
+  #       "checkout_experiment"
+  #     end
+  #   end
+  #
+  # Run keys and cache keys will remain identical to the ones the old class
+  # generated.
+  #
   # You can configure the details used in generating the digest by specifying a
   # secret key and a bit length. The secret key is used to salt the digest, and
   # the bit length is used to determine the length of the digest.
@@ -66,10 +82,14 @@ module ActiveExperiment
     end
 
     private
-      def run_key_hexdigest(source)
-        ingredients = [DIGEST_VERSION, name, digest_secret_key, digest_ingredient(source)]
+      def run_key_hexdigest
+        ingredients = [DIGEST_VERSION, name, digest_secret_key, context_digest_ingredient]
 
         ::Digest::SHA2.new(digest_bit_length).hexdigest(ingredients.join("|"))
+      end
+
+      def context_digest_ingredient
+        @context_digest_ingredient ||= digest_ingredient(context)
       end
 
       # Renders a value as a string that's identical for equivalent contexts.

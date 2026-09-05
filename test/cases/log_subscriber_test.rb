@@ -269,8 +269,23 @@ class LogSubscriberTest < ActiveSupport::TestCase
   end
 
   test "when the logger is nil" do
-    capture_logger(logger: false) do
+    result = capture_logger(logger: false) do
       NoCallbackExperiment.run
+    end
+
+    assert_equal "red", result
+  end
+
+  test "a run with no logger doesn't leave the nesting stack behind" do
+    # The subscriber pushes onto its stack inside the same guard that returns
+    # early without a logger, so a run made while logging is off has to leave
+    # nothing for the next one to trip over and report as nested.
+    capture_logger(logger: false) { NoCallbackExperiment.run }
+
+    capture_logger do |logger|
+      NoCallbackExperiment.run
+
+      assert_no_match(/Nesting experiment/, logger.messages)
     end
   end
 

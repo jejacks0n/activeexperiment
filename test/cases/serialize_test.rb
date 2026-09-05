@@ -9,6 +9,7 @@ class SerializeTest < ActiveSupport::TestCase
       run_id: "1fbde0db-2c9f-4ed8-83b7-b30293d644ae",
       run_key: "d76381b585686083ce758b3813d4b056fe5855507fce9c9894e490b053eb90dc",
       variant: :treatment,
+      variant_source: nil,
       skipped: false,
     }
 

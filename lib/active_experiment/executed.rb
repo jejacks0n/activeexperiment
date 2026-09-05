@@ -1,6 +1,12 @@
 # frozen_string_literal: true
 
 require "active_support/current_attributes"
+# Both of the +to_json+ methods below rely on this. Nothing else in the library
+# pulls it in, so without it they're left with whatever +to_json+ happens to be
+# defined -- the one stdlib json installs if some other gem required it, or no
+# method at all. Requiring it means the same encoder either way, which is the
+# one a Rails application would already be using.
+require "active_support/core_ext/object/json"
 
 module ActiveExperiment
   # == Executed Experiments
@@ -52,8 +58,10 @@ module ActiveExperiment
     # Interface to add an experiment to the executed experiments. This is
     # intended to be used by the +run+ method of the experiment class.
     #
-    # Experiments are added to the executed experiments if they have been
-    # assigned a variant.
+    # Every experiment that starts running is added, once, including ones that
+    # were skipped and ones that raised partway through -- a skipped experiment
+    # is still a decision the client layer may need to know about. Experiments
+    # that raised before they could start aren't added.
     def self.<<(experiment)
       self.experiments ||= []
       experiments << experiment
