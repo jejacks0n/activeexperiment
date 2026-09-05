@@ -174,6 +174,32 @@ class LifecycleTest < ActiveSupport::TestCase
     SubjectExperiment.lifecycle_refresh_interval = 60
   end
 
+  test "experiments sharing a recorder share one lookup" do
+    other = Class.new(SubjectExperiment) do
+      def self.experiment_name = "other_experiment"
+    end
+    other.recorder = SubjectExperiment.recorder
+
+    SubjectExperiment.run(id: 1)
+    reads = SubjectExperiment.recorder.reads
+
+    other.run(id: 1)
+
+    # The second experiment reads the state the first one already fetched, so
+    # the number of experiments doesn't change how often the recorder is asked.
+    assert_equal reads, SubjectExperiment.recorder.reads
+  end
+
+  test "refreshing one experiment refreshes everything on that recorder" do
+    SubjectExperiment.run(id: 1)
+    reads = SubjectExperiment.recorder.reads
+
+    SubjectExperiment.refresh_lifecycle!
+    SubjectExperiment.run(id: 2)
+
+    assert_operator SubjectExperiment.recorder.reads, :>, reads
+  end
+
   test "an experiment that isn't recorded never asks the recorder" do
     recorder = ActiveExperiment::Recorders::NullRecorder.new
     SubjectExperiment.recorder = recorder
@@ -197,8 +223,12 @@ class LifecycleTest < ActiveSupport::TestCase
       @reads = 0
     end
 
-    def experiment(experiment_name)
+    def experiments
       @reads += 1
+      @rows.values
+    end
+
+    def experiment(experiment_name)
       @rows[experiment_name.to_s]
     end
 

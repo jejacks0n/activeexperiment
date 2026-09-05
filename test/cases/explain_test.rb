@@ -124,13 +124,19 @@ class ExplainTest < ActiveSupport::TestCase
       @writes = 0
     end
 
+    def experiments
+      @rows.values
+    end
+
     def experiment(experiment_name)
       @rows[experiment_name.to_s]
     end
 
     def update_experiment(experiment_name, **attributes)
       @writes += 1
-      row = @rows[experiment_name.to_s] ||= {}
+      # Rows carry their own name, the way a real recorder's do, since that's
+      # what the state cache keys them by.
+      row = @rows[experiment_name.to_s] ||= { name: experiment_name.to_s }
       attributes.each do |key, value|
         row[key] = case key
                    when :state then value.to_sym
