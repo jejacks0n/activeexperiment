@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "date"
+require "active_support/core_ext/date/calculations"
 
 module ActiveExperiment
   module Recorders
@@ -50,6 +51,12 @@ module ActiveExperiment
       # Buffered runs that force a flush, whatever the interval says.
       DEFAULT_FLUSH_THRESHOLD = 500
       private_constant :DEFAULT_FLUSH_THRESHOLD
+
+      # What +delete_experiment+ answers with, and the keys every recorder's
+      # answer carries. Named for the reads the rows would otherwise have come
+      # back from, so a caller can total them or read one without knowing which
+      # recorder it's talking to.
+      NOTHING_DELETED = { experiments: 0, rollups: 0, overlaps: 0 }.freeze
 
       # The provenance counters, one per +variant_source+. They sum to the run
       # count, so a variant whose runs don't add up is a variant being assigned
@@ -169,6 +176,27 @@ module ActiveExperiment
         raise NotImplementedError
       end
 
+      # Removes everything recorded about an experiment.
+      #
+      # It's irreversible, and it probably isn't the way you want to end an
+      # experiment that ran to a conclusion. The history of an experiment is
+      # often worth keeping. This is surfaced for an experiment that was
+      # recorded by mistake, or one whose record has outlived any use.
+      #
+      # Deleting an overlap removes it from the other experiment in the pair as
+      # well, since a pair is stored once rather than once per side. This means
+      # that you could lose overlap data for experiments that aren't the one
+      # you're deleting.
+      #
+      # Returns how many rows went, keyed by what they were -- the same keys
+      # +NOTHING_DELETED+ carries, whether or not anything matched.
+      def delete_experiment(experiment_name)
+        experiment_name = experiment_name.to_s
+        discard_buffered(experiment_name)
+
+        delete_recorded(experiment_name)
+      end
+
       # Daily variant rollups for one experiment, oldest first.
       def rollups(experiment_name, since: nil)
         []
@@ -185,6 +213,26 @@ module ActiveExperiment
         # is flushing its own.
         def write(registry, runs, overlaps)
           raise NotImplementedError
+        end
+
+        # Removes what's been persisted for an experiment. Raises rather than
+        # doing nothing, the way +update_experiment+ does: a recorder that
+        # stores things has to be able to stop storing them.
+        def delete_recorded(experiment_name)
+          raise NotImplementedError
+        end
+
+        # Drops anything buffered for an experiment that's being forgotten, so
+        # this process doesn't put back what it was just asked to remove on its
+        # next flush.
+        def discard_buffered(experiment_name)
+          @lock.synchronize do
+            @registry.delete(experiment_name)
+            @runs.delete_if { |(name, _variant, _date), _counts| name == experiment_name }
+            @overlaps.delete_if do |(experiment_a, _variant_a, experiment_b, _variant_b), _counts|
+              experiment_a == experiment_name || experiment_b == experiment_name
+            end
+          end
         end
 
         # Describing an experiment means asking its rollout to describe itself,

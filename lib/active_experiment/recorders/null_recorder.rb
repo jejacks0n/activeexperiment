@@ -30,6 +30,10 @@ module ActiveExperiment
       def flush!
         false
       end
+
+      def delete_experiment(experiment_name)
+        NOTHING_DELETED
+      end
     end
   end
 end

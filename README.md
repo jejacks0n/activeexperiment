@@ -67,6 +67,15 @@ Source code can be downloaded as part of the project on GitHub:
 
 * https://github.com/jejacks0n/activeexperiment
 
+Two optional parts of Active Experiment can by backed by Active Record and so it needs a migration. The install generator writes a single migration covering both. This migration isn't required, and is only useful if you plan on using Active Record as your caching strategy and / or for recording of experiment results.
+
+```bash
+bin/rails generate active_experiment:install
+bin/rails db:migrate
+```
+
+The tables it creates serve two separate and independent features -- [recording](#recording), which tracks experiment data it can be reported on, and [caching](#caching), which keeps variant assignments stable. Both features are off by default, until they're configured. If you don't need one or the other, edit the migration and delete the part you don't need before running it; it's commented for clarity.
+
 Adapters can be added to integrate with various services:
 
 - [Unleash adapter](https://github.com/jejacks0n/activeexperiment-unleash) 
@@ -247,7 +256,7 @@ ActiveExperiment::Base.default_cache_store = :redis_hash
 config.active_experiment.default_cache_store = :redis_hash
 ```
 
-Two cache stores ship with the library: `:redis_hash`, which uses a Redis hash per experiment, and `:active_record`, which needs a table -- see `ActiveExperiment::Cache::ActiveRecordCacheStore` for the migration.
+Two cache stores ship with the library: `:redis_hash`, which uses a Redis hash per experiment, and `:active_record`, which needs a table. Use `bin/rails generate active_experiment:install` to get the migration.
 
 Technically any `ActiveSupport::Cache::Store` will work too, as long as it can hold on to entries for as long as the experiment runs.
 
@@ -283,13 +292,143 @@ class NewCheckoutExperiment < ActiveExperiment::Base
 end
 ```
 
-## Reporting
+## Recording
 
-Reporting is a core concept in Active Experiment. It allows for collecting data about experiments and variants, and can be used to track performance metrics, analyze results, and more.
+Nothing about experiments is recorded by default. The default is the `:null_recorder`, which does nothing, but Active Experiment comes with the ability to record experiment data into Active Record, and is setup so you can write your own recorders if you want to.  
 
-Some simple reporting strategies might simply be added to `after_run` callbacks, but more complex reporting strategies can be implemented using a subscriber.
+To setup recording into Active Record, create the tables (see [Installation](#download-and-installation)) and configure the default recorder to use it with one of these lines:
 
-A subscriber can be used to listen for experiment events and report them to a service. For example, here's a subscriber that reports to a fictional analytics service:
+```ruby
+ActiveExperiment::Base.default_recorder = :active_record
+config.active_experiment.default_recorder = :active_record
+```
+
+Or per experiment, the same way cache stores are configured:
+
+```ruby
+class MyExperiment < ActiveExperiment::Base
+  use_recorder :active_record
+end
+```
+
+An experiment that shouldn't be recorded can opt out with `use_recorder :null_recorder`.
+
+Recorders subscribes to the same events any subscriber would -- `ActiveExperiment::RecordSubscriber` is a simple subscriber next to `ActiveExperiment::LogSubscriber`, and the [Writing a Custom Recorder](#writing-a-custom-recorder) section below covers writing your own.
+
+### What gets recorded
+
+Three things are stored:
+
+- **An entry per experiment** This includes the name of the experiment, the variants it registers, the rollout it uses, the cache store it uses, and when it was first and last seen being run.
+- **Daily counts per variant** How many runs, how many runs were skipped, how many raised exceptions, and how the variants came to be assigned.
+- **Overlaps** Experiments can overlap and be nested, so this allows us to see how often two experiments were run together, per pair of variants, and how often one was nested inside the other.
+
+That last one is worth noting. Two experiments overlapping can be normal. What isn't normal is one experiment's variants being split differently inside each of another's, which means the two are entangled and neither experiment can be evaluated on its own.
+
+### Reading it back
+
+A recorder answers four questions, and returns plain hashes, so something reporting on experiments doesn't have to know which recorder it's talking to:
+
+```ruby
+recorder = ActiveExperiment::Base.recorder
+
+recorder.experiments                                          # list of experiments
+recorder.experiment("my_experiment")                          # details of an experiment
+recorder.rollups("my_experiment", since: 2.weeks.ago.to_date) # daily counts
+recorder.overlaps("my_experiment")                            # co-occurrence details
+```
+
+
+### Forgetting an experiment
+
+Under certain circumstances you might have to remove an experiment. You usually don't want to do this, but if you've accidentally recorded data for an experiment, or renamed an experiment and legitimately want to clean up old data, you can run the following:
+
+```ruby
+recorder.delete_experiment("my_experiment")
+```
+
+```
+bin/rails active_experiment:forget[my_experiment]
+```               
+
+Overlaps are stored once per pair rather than once per experiment, so forgetting one experiment might also remove a still running experiment's view of that overlap.
+
+This is irreversible, and likely isn't how you want to end an experiment that ran to a conclusion. That history is often worth keeping.
+
+### Buffering and durability
+
+Counts accumulate in per-process counters and are written in batches, so running an experiment doesn't cost a write. A batch goes out when enough runs have piled up or enough time has passed, both configurable:
+
+```ruby
+use_recorder :active_record, flush_interval: 60, flush_threshold: 1_000
+```
+
+If your processes are cycled regularly, for example a Heroku dyno restart, or any deploy, you can flush on puma shutdown. How you handle this depends a bit on your deployment strategy though, so this is just an example.
+
+```ruby
+# config/puma.rb
+on_worker_shutdown { ActiveExperiment::Base.recorder.flush! }
+```
+
+`flush!` writes immediately, which you'd also want to do in a test before attempting to read data back.
+
+### Storing it elsewhere
+
+Statements run against `ActiveRecord::Base`'s connection. Since these tables are written to constantly and read from rarely, a busy application may not want them alongside everything else:
+
+```ruby
+# config/initializers/active_experiment.rb
+ActiveExperiment::Recorders::ActiveRecordRecorder::Record.connects_to(
+  database: { writing: :experiments }
+)
+```
+
+## Writing a custom recorder / subscriber
+
+Custom recorders can be written, for forwarding experiment run data to a metrics service, say -- they don't have to write to a database. You just need to subclass `ActiveExperiment::Recorders::BaseRecorder` and implement `write`; the buffering, flush timing and counting are handled for you.
+
+Being able to answer questions afterwards is optional, so a recorder that only forwards doesn't have to implement the reads.
+
+```ruby
+class StatsdRecorder < ActiveExperiment::Recorders::BaseRecorder
+  private
+    def write(registry, runs, overlaps)
+      runs.each do |(experiment, variant, _date), counts|
+        StatsD.increment("experiment.runs", by: counts[:runs],
+          tags: { experiment: experiment, variant: variant })
+      end
+    end
+end
+
+ActiveExperiment::Base.default_recorder = StatsdRecorder.new
+```
+
+`write` is handed everything the process buffered since its last flush, as three hashes:
+
+```
+# registry
+{ "checkout_experiment" => {
+    class_name: "CheckoutExperiment",
+    variant_names: [:red, :blue],
+    default_variant: :control, rollout: nil,
+    cache_store: "ActiveSupport::Cache::NullStore" } }
+
+# runs
+{ ["checkout_experiment", "red", Fri, 04 Sep 2026] => {
+    runs: 1,
+    skipped: 0,
+    errored: 0,
+    from_preset: 1 } }
+
+# overlaps
+{ ["banner_experiment", "on", "checkout_experiment", "red"] => {
+    count: 1,
+    nested_count: 0 } }
+```
+
+Counts are deltas. The `from_*` keys in the runs section say how each variant was decided, and only appear for sources that actually occurred.
+
+In addition to custom recorders, a generic subscriber can be used to listen for experiment events and report them to a service. For example, here's a subscriber that reports to a fictional analytics service:
 
 ```ruby
 class MyAnalyticsSubscriber < ActiveSupport::Subscriber
@@ -331,7 +470,9 @@ class MyExperiment < ActiveExperiment::Base
 end
 ```
 
-By default it includes the experiment name, run id, run key, assigned variant, and whether the run was skipped.
+By default it includes the experiment name, run id, run key, assigned variant, how that variant was decided, and whether the run was skipped.
+
+That last pair is worth having in whatever you report to. `variant_source` says which of the several ways a variant could have been arrived at actually happened -- `:rollout`, `:cached`, `:segment`, `:preset`, `:skipped`, or `:default` when nothing assigned one and the default variant was used, which usually means the rollout isn't working.
 
 ## Experiments in views
 

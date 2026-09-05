@@ -1,0 +1,122 @@
+# frozen_string_literal: true
+
+class CreateActiveExperimentTables < ActiveRecord::Migration[<%= ActiveRecord::Migration.current_version %>]
+  def change
+    # == Recording
+    #
+    # The three tables below are what
+    # ActiveExperiment::Recorders::ActiveRecordRecorder writes to, and they're
+    # only needed if that's the recorder in use:
+    #
+    #   config.active_experiment.default_recorder = :active_record
+    #
+    # Nothing else in the library reads them, so delete them if experiments
+    # aren't recorded, or are recorded somewhere else. What they hold is
+    # bounded -- a row per experiment, a row per variant per day, and a row per
+    # pair of experiments seen together -- so they stay small whatever the
+    # traffic is.
+
+    # One row per experiment that's been seen. Rows outlive the classes that
+    # wrote them on purpose: an experiment that was deleted while its
+    # assignments are still cached is worth being able to notice.
+    create_table :active_experiment_experiments do |t|
+      t.string :name, null: false
+      t.string :class_name
+      t.string :state, null: false, default: "running"
+      t.text :variant_names
+      t.string :default_variant
+      t.text :rollout
+      t.string :cache_store
+      t.datetime :first_seen_at
+      t.datetime :last_seen_at
+      t.datetime :concluded_at
+      t.string :winning_variant
+      t.text :notes
+    end
+
+    add_index :active_experiment_experiments, :name,
+      unique: true, name: "index_ae_experiments_on_name"
+
+    # Daily counts per variant. Every process flushes its own buffered counts as
+    # deltas that are added to the stored row, which is what the unique index is
+    # for -- see the recorder for why the index isn't optional.
+    #
+    # The from_* counters break down how the variant came to be assigned, and
+    # sum to runs.
+    create_table :active_experiment_rollups do |t|
+      t.string :experiment, null: false
+      t.string :variant, null: false
+      t.date :date, null: false
+
+      t.integer :runs, null: false, default: 0
+      t.integer :skipped, null: false, default: 0
+      t.integer :errored, null: false, default: 0
+
+      t.integer :from_preset, null: false, default: 0
+      t.integer :from_skipped, null: false, default: 0
+      t.integer :from_cached, null: false, default: 0
+      t.integer :from_segment, null: false, default: 0
+      t.integer :from_rollout, null: false, default: 0
+      t.integer :from_default, null: false, default: 0
+      t.integer :from_concluded, null: false, default: 0
+    end
+
+    add_index :active_experiment_rollups, [:experiment, :variant, :date],
+      unique: true, name: "index_ae_rollups_uniqueness"
+
+    # How often two experiments were run together, per pair of variants. Pairs
+    # are stored in a canonical order, so a pair is one row rather than two.
+    create_table :active_experiment_overlaps do |t|
+      t.string :experiment_a, null: false
+      t.string :variant_a, null: false
+      t.string :experiment_b, null: false
+      t.string :variant_b, null: false
+      t.integer :count, null: false, default: 0
+      t.integer :nested_count, null: false, default: 0
+      t.datetime :last_seen_at
+    end
+
+    add_index :active_experiment_overlaps,
+      [:experiment_a, :variant_a, :experiment_b, :variant_b],
+      unique: true, name: "index_ae_overlaps_uniqueness"
+
+    # == Caching
+    #
+    # This one is separate from the three above, and most applications want
+    # one or the other rather than both. It's where
+    # ActiveExperiment::Cache::ActiveRecordCacheStore keeps variant
+    # assignments, and it's only needed if that's the cache store in use:
+    #
+    #   config.active_experiment.default_cache_store = :active_record
+    #
+    # Delete it if experiments aren't cached, or are cached in Redis with
+    # `:redis_hash`, which is the better fit for the volume described below.
+    #
+    # Unlike the recorder's tables, this one is unbounded: it holds a row for
+    # every distinct context an experiment is ever run with. An experiment run
+    # on a combination -- every user viewing every post, say -- can reach
+    # millions of rows on its own. `MyExperiment.cache_size` measures it.
+    #
+    # These entries also have to live for as long as the experiment does. An
+    # assignment that expires mid-experiment isn't a stable assignment, so
+    # don't put a TTL or a cleanup job on this table. Ending an experiment is
+    # what clears it, in batches:
+    #
+    #   MyExperiment.clear_cache(batch_size: 1_000)
+    #
+    # The unique index is required rather than recommended. Writes upsert on it
+    # so that two requests resolving the same context at once don't collide,
+    # and without it PostgreSQL and SQLite reject the statement outright while
+    # MySQL quietly accumulates duplicate rows.
+    #
+    # The value column is binary because that's what entries serialize to: a
+    # payload leading with a null byte that isn't necessarily valid in the
+    # connection's encoding.
+    create_table :active_experiment_cache_entries, id: false do |t|
+      t.string :key, null: false
+      t.binary :value, null: false
+    end
+
+    add_index :active_experiment_cache_entries, :key, unique: true
+  end
+end

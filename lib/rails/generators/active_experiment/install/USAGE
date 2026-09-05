@@ -1,0 +1,19 @@
+Description:
+    Generates the migration for the parts of Active Experiment that are backed
+    by Active Record: the tables the recorder writes to, and the table the
+    Active Record cache store keeps variant assignments in.
+
+    Both are opt in, and an application may only want one of them, so read the
+    migration and delete what you don't need before running it.
+
+    Nothing is recorded or cached until it's configured, so after migrating:
+
+        config.active_experiment.default_recorder = :active_record
+        config.active_experiment.default_cache_store = :active_record
+
+Example:
+    `bin/rails generate active_experiment:install`
+
+      Creates:
+
+        Migration: db/migrate/xxx_create_active_experiment_tables.rb

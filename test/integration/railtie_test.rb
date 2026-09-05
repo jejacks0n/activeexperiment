@@ -2,7 +2,82 @@
 
 require "integration_helper"
 
+# An experiment that moved and kept the record name it started with, which is
+# the case the forget task has to consult the class to get right.
+class RenamedExperiment < ActiveExperiment::Base
+  variant(:red) { "red" }
+
+  def self.experiment_name
+    "original_experiment"
+  end
+end
+
 describe "the railtie" do
+  # Shared with the dummy app's other integration tests, so whichever of them
+  # touches the schema puts it back.
+  RECORDER_TABLES = %w[
+    active_experiment_experiments active_experiment_rollups active_experiment_overlaps
+  ].freeze
+
+  def capture_stdout(&block)
+    original, $stdout = $stdout, StringIO.new
+    block.call
+    $stdout.string
+  ensure
+    $stdout = original
+  end
+
+  def create_recorder_tables
+    recorder = ActiveExperiment::Recorders::ActiveRecordRecorder
+    connection = ActiveRecord::Base.connection
+    return if connection.table_exists?("active_experiment_experiments")
+
+    connection.create_table("active_experiment_experiments") do |t|
+      t.string :name, null: false
+      t.string :class_name
+      t.string :state, null: false, default: "running"
+      t.text :variant_names
+      t.string :default_variant
+      t.text :rollout
+      t.string :cache_store
+      t.datetime :first_seen_at
+      t.datetime :last_seen_at
+      t.datetime :concluded_at
+      t.string :winning_variant
+      t.text :notes
+    end
+    connection.add_index("active_experiment_experiments", :name,
+      unique: true, name: "index_ae_experiments_on_name")
+
+    connection.create_table("active_experiment_rollups") do |t|
+      t.string :experiment, null: false
+      t.string :variant, null: false
+      t.date :date, null: false
+      recorder::COUNTERS.each { |counter| t.integer counter, null: false, default: 0 }
+    end
+    connection.add_index("active_experiment_rollups", [:experiment, :variant, :date],
+      unique: true, name: "index_ae_rollups_uniqueness")
+
+    connection.create_table("active_experiment_overlaps") do |t|
+      t.string :experiment_a, null: false
+      t.string :variant_a, null: false
+      t.string :experiment_b, null: false
+      t.string :variant_b, null: false
+      t.integer :count, null: false, default: 0
+      t.integer :nested_count, null: false, default: 0
+      t.datetime :last_seen_at
+    end
+    connection.add_index("active_experiment_overlaps",
+      [:experiment_a, :variant_a, :experiment_b, :variant_b],
+      unique: true, name: "index_ae_overlaps_uniqueness")
+  end
+
+  def drop_recorder_tables
+    connection = ActiveRecord::Base.connection
+
+    RECORDER_TABLES.each { |table| connection.drop_table(table, if_exists: true) }
+  end
+
   def capture_sql(&block)
     statements = []
     subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
@@ -17,6 +92,94 @@ describe "the railtie" do
 
   it "sets the logger to the rails logger" do
     assert_equal Rails.logger, ActiveExperiment.logger
+  end
+
+  it "registers the rake tasks" do
+    Rails.application.load_tasks
+
+    assert_includes Rake::Task.tasks.map(&:name), "active_experiment:forget"
+  end
+
+  it "forgets an experiment through the rake task" do
+    recorder = ActiveExperiment::Recorders::ActiveRecordRecorder.new
+    original, ActiveExperiment::Base.recorder = ActiveExperiment::Base.recorder, recorder
+    create_recorder_tables
+
+    recorder.update_experiment("task_experiment", class_name: "TaskExperiment")
+    assert recorder.experiment("task_experiment")
+
+    Rails.application.load_tasks
+    output = capture_stdout do
+      # Named the way somebody would type it, which is the class rather than
+      # the record -- the task underscores it to find the row.
+      Rake::Task["active_experiment:forget"].tap(&:reenable).invoke("TaskExperiment")
+    end
+
+    assert_match(/Forgot task_experiment/, output)
+    assert_nil recorder.experiment("task_experiment")
+  ensure
+    ActiveExperiment::Base.recorder = original
+    drop_recorder_tables
+  end
+
+  it "forgets the record a renamed experiment actually writes to" do
+    recorder = ActiveExperiment::Recorders::ActiveRecordRecorder.new
+    original, ActiveExperiment::Base.recorder = ActiveExperiment::Base.recorder, recorder
+    create_recorder_tables
+
+    recorder.update_experiment("original_experiment", class_name: "RenamedExperiment")
+
+    Rails.application.load_tasks
+    output = capture_stdout do
+      Rake::Task["active_experiment:forget"].tap(&:reenable).invoke("RenamedExperiment")
+    end
+
+    # Going by the name alone would have looked for `renamed_experiment`,
+    # deleted nothing, and said so as though that were the answer.
+    assert_match(/RenamedExperiment records as original_experiment/, output)
+    assert_match(/Forgot original_experiment/, output)
+    assert_nil recorder.experiment("original_experiment")
+  ensure
+    ActiveExperiment::Base.recorder = original
+    drop_recorder_tables
+  end
+
+  it "forgets by name when no class is left to ask" do
+    recorder = ActiveExperiment::Recorders::ActiveRecordRecorder.new
+    original, ActiveExperiment::Base.recorder = ActiveExperiment::Base.recorder, recorder
+    create_recorder_tables
+
+    recorder.update_experiment("deleted_experiment", class_name: "DeletedExperiment")
+
+    Rails.application.load_tasks
+    output = capture_stdout do
+      Rake::Task["active_experiment:forget"].tap(&:reenable).invoke("DeletedExperiment")
+    end
+
+    assert_match(/No experiment class named DeletedExperiment/, output)
+    assert_nil recorder.experiment("deleted_experiment")
+  ensure
+    ActiveExperiment::Base.recorder = original
+    drop_recorder_tables
+  end
+
+  it "forgets an experiment named the way it's recorded" do
+    recorder = ActiveExperiment::Recorders::ActiveRecordRecorder.new
+    original, ActiveExperiment::Base.recorder = ActiveExperiment::Base.recorder, recorder
+    create_recorder_tables
+
+    recorder.update_experiment("original_experiment", class_name: "RenamedExperiment")
+
+    Rails.application.load_tasks
+    capture_stdout do
+      # The underscored spelling finds the same class, and so the same record.
+      Rake::Task["active_experiment:forget"].tap(&:reenable).invoke("renamed_experiment")
+    end
+
+    assert_nil recorder.experiment("original_experiment")
+  ensure
+    ActiveExperiment::Base.recorder = original
+    drop_recorder_tables
   end
 
   it "registers each of the custom rollouts" do

@@ -86,6 +86,10 @@ module ActiveExperiment
     config.active_experiment.custom_rollouts = {}
     config.active_experiment.log_query_tags_around_run = true
 
+    rake_tasks do
+      load "active_experiment/tasks.rake"
+    end
+
     initializer "active_experiment.logger" do
       ActiveSupport.on_load(:active_experiment) { ActiveExperiment.logger = ::Rails.logger }
     end

@@ -44,10 +44,6 @@ class RecordingTest < ActiveSupport::TestCase
       ActiveExperiment::Recorders.lookup(:null_recorder)
     assert_instance_of ActiveExperiment::Recorders::NullRecorder,
       ActiveExperiment::Recorders.lookup(:null)
-    assert_instance_of ActiveExperiment::Recorders::ActiveRecordRecorder,
-      ActiveExperiment::Recorders.lookup(:active_record)
-    assert_instance_of ActiveExperiment::Recorders::ActiveRecordRecorder,
-      ActiveExperiment::Recorders.lookup(:active_record_recorder)
   end
 
   test "looking up a recorder that isn't registered" do
@@ -158,6 +154,8 @@ class RecordingTest < ActiveSupport::TestCase
     SubjectExperiment.run(id: 1)
 
     assert_equal false, recorder.flush!
+    assert_equal({ experiments: 0, rollups: 0, overlaps: 0 },
+      recorder.delete_experiment("recording_test/subject_experiment"))
     assert_empty recorder.experiments
     assert_empty recorder.rollups("recording_test/subject_experiment")
     assert_empty recorder.overlaps("recording_test/subject_experiment")

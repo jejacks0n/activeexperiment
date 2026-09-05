@@ -8,6 +8,7 @@ module ActiveExperiment
   module Recorders
     extend ActiveSupport::Autoload
 
+    autoload :ActiveRecordRecorder
     autoload :BaseRecorder
     autoload :NullRecorder
 
