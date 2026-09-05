@@ -24,7 +24,7 @@ module ActiveExperiment
       def record_run(experiment, errored: false)
       end
 
-      def record_overlap(experiments)
+      def record_executed(experiments)
       end
 
       def flush!

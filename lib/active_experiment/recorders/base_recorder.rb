@@ -59,6 +59,11 @@ module ActiveExperiment
       # recorder it's talking to.
       NOTHING_DELETED = { experiments: 0, rollups: 0, overlaps: 0 }.freeze
 
+      # The depth recorded for two experiments that ran together without one
+      # being inside the other. Anything above it is a nesting, and the number
+      # is how far apart the two were.
+      CO_OCCURRENCE = 0
+
       # The provenance counters, one per +variant_source+. They sum to the run
       # count, so a variant whose runs don't add up is a variant being assigned
       # some way this doesn't know about.
@@ -150,16 +155,12 @@ module ActiveExperiment
       # afterwards: two experiments overlapping is expected and mostly fine,
       # but one experiment's variants being distributed differently inside each
       # of another's is the two of them interfering with each other.
-      def record_overlap(experiments)
-        pairs = overlap_pairs(experiments)
-        return if pairs.empty?
+      def record_executed(experiments)
+        relations = overlap_pairs(experiments) + nesting_edges(experiments)
+        return if relations.empty?
 
         @lock.synchronize do
-          pairs.each do |pair, nested|
-            counts = @overlaps[pair]
-            counts[:count] += 1
-            counts[:nested_count] += nested ? 1 : 0
-          end
+          relations.each { |relation| @overlaps[relation][:count] += 1 }
 
           @pending += 1
         end
@@ -170,16 +171,16 @@ module ActiveExperiment
       # Writes whatever has accumulated, and returns whether there was anything
       # to write.
       def flush!
-        registry, runs, overlaps = @lock.synchronize do
-          buffered = [@registry, @runs, @overlaps]
+        buffered = @lock.synchronize do
+          held = [@registry, @runs, @overlaps]
           clear_buffer
-          buffered
+          held
         end
 
         @last_flush = monotonic_now
-        return false if registry.empty? && runs.empty? && overlaps.empty?
+        return false if buffered.all?(&:empty?)
 
-        write(registry, runs, overlaps)
+        write(*buffered)
         true
       end
 
@@ -270,6 +271,12 @@ module ActiveExperiment
         []
       end
 
+      # Every experiment this one has been run inside of, and every experiment
+      # that has been run inside it, with the distance between them.
+      def nestings(experiment_name)
+        []
+      end
+
       private
         # Persists a flushed buffer. Counts are deltas and have to be added to
         # whatever is already stored, not written over it, since every process
@@ -292,7 +299,7 @@ module ActiveExperiment
           @lock.synchronize do
             @registry.delete(experiment_name)
             @runs.delete_if { |(name, _variant, _date), _counts| name == experiment_name }
-            @overlaps.delete_if do |(experiment_a, _variant_a, experiment_b, _variant_b), _counts|
+            @overlaps.delete_if do |(experiment_a, _variant_a, experiment_b, _variant_b, _depth), _counts|
               experiment_a == experiment_name || experiment_b == experiment_name
             end
           end
@@ -325,28 +332,45 @@ module ActiveExperiment
         # one request with different contexts counts once per variant it landed
         # on rather than once per run.
         def overlap_pairs(experiments)
-          return {} unless experiments && experiments.length > 1
+          return [] unless experiments && experiments.length > 1
 
-          nested = nested_pairs(experiments)
           identities = experiments.map { |e| [e.name, e.variant.to_s] }.uniq
 
-          identities.combination(2).each_with_object({}) do |(a, b), pairs|
+          identities.combination(2).filter_map do |a, b|
             # The same experiment twice, on different contexts, isn't an
             # overlap with itself.
-            next if a.first == b.first
-
-            key = pair_key(a, b)
-            pairs[key] = nested.include?(key)
-          end
+            [*pair_key(a, b), CO_OCCURRENCE] unless a.first == b.first
+          end.uniq
         end
 
-        def nested_pairs(experiments)
-          experiments.filter_map do |experiment|
-            parent = experiment.nested_within
-            next unless parent
+        # The nesting in a set of experiments that ran together, as
+        # `[outer, outer_variant, inner, inner_variant, depth]`.
+        #
+        # Every ancestor is recorded rather than only the immediate one, with
+        # the distance between them. A direct call is depth 1, so the call
+        # graph is the depth 1 edges, and anything deeper is an experiment
+        # whose population is conditioned on one further up.
+        #
+        # Recording the whole chain rather than composing it afterwards keeps
+        # the counts to nestings that actually happened. Walking depth 1 edges
+        # from separate requests would suggest chains that never ran, since one
+        # request might have called A from B while another called B on its own.
+        def nesting_edges(experiments)
+          return [] if experiments.blank?
 
-            pair_key([experiment.name, experiment.variant.to_s], [parent.name, parent.variant.to_s])
+          edges = experiments.each_with_object({}) do |experiment, found|
+            inner = [experiment.name, experiment.variant.to_s]
+            outer = experiment.nested_within
+            depth = 1
+
+            while outer
+              found[[outer.name, outer.variant.to_s, *inner, depth]] = true
+              outer = outer.nested_within
+              depth += 1
+            end
           end
+
+          edges.keys
         end
 
         def pair_key(a, b)

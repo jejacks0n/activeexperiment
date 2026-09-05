@@ -63,12 +63,12 @@ class ActiveRecordRecorderTestCase < ActiveSupport::TestCase
       t.string :variant_a, null: false, limit: 64
       t.string :experiment_b, null: false, limit: 191
       t.string :variant_b, null: false, limit: 64
+      t.integer :depth, null: false, default: 0
       t.integer :count, null: false, default: 0
-      t.integer :nested_count, null: false, default: 0
       t.datetime :last_seen_at
     end
     connection.add_index("active_experiment_overlaps",
-      [:experiment_a, :variant_a, :experiment_b, :variant_b],
+      [:experiment_a, :variant_a, :experiment_b, :variant_b, :depth],
       unique: true, name: "index_ae_overlaps_uniqueness")
   end
 
@@ -294,7 +294,6 @@ class ActiveRecordRecorderTestCase < ActiveSupport::TestCase
     assert_equal OtherExperiment.experiment_name, overlap[:other_experiment]
     assert_equal :on, overlap[:other_variant]
     assert_equal 1, overlap[:count]
-    assert_equal 0, overlap[:nested_count]
   end
 
   test "an overlap reads the same from either side" do
@@ -320,6 +319,46 @@ class ActiveRecordRecorderTestCase < ActiveSupport::TestCase
     end
 
     assert_equal 3, @recorder.overlaps(SubjectExperiment.experiment_name).sole[:count]
+  end
+
+  test "recording a hierarchy of nested experiments" do
+    NestingExperiment.recorder = @recorder
+    DeepExperiment.recorder = @recorder
+
+    DeepExperiment.set(variant: :on).run(id: 1)
+    ActiveExperiment::Executed.reset
+    @recorder.flush!
+
+    edges = @recorder.nestings(DeepExperiment.experiment_name)
+      .map { |row| [row[:outer_experiment], row[:inner_experiment], row[:depth]] }
+
+    # Every ancestor is recorded, not just the immediate one, so the whole
+    # chain is there to walk from either end.
+    assert_includes edges, [DeepExperiment.experiment_name, NestingExperiment.experiment_name, 1]
+    assert_includes edges, [DeepExperiment.experiment_name, OtherExperiment.experiment_name, 2]
+
+    from_innermost = @recorder.nestings(OtherExperiment.experiment_name)
+      .map { |row| [row[:outer_experiment], row[:depth]] }
+
+    assert_includes from_innermost, [NestingExperiment.experiment_name, 1]
+    assert_includes from_innermost, [DeepExperiment.experiment_name, 2]
+  ensure
+    NestingExperiment.recorder = ActiveExperiment::Base.recorder
+    DeepExperiment.recorder = ActiveExperiment::Base.recorder
+  end
+
+  test "nesting counts accumulate across flushes" do
+    NestingExperiment.recorder = @recorder
+
+    3.times do
+      NestingExperiment.set(variant: :on).run(id: 1)
+      ActiveExperiment::Executed.reset
+      @recorder.flush!
+    end
+
+    assert_equal 3, @recorder.nestings(NestingExperiment.experiment_name).sole[:count]
+  ensure
+    NestingExperiment.recorder = ActiveExperiment::Base.recorder
   end
 
   test "the variant cross tab an overlap builds up" do
@@ -373,6 +412,16 @@ class ActiveRecordRecorderTestCase < ActiveSupport::TestCase
 
   class OtherExperiment < ActiveExperiment::Base
     variant(:on) { "on" }
+    variant(:off) { "off" }
+  end
+
+  class NestingExperiment < ActiveExperiment::Base
+    variant(:on) { OtherExperiment.set(variant: :on).run(id: 1) }
+    variant(:off) { "off" }
+  end
+
+  class DeepExperiment < ActiveExperiment::Base
+    variant(:on) { NestingExperiment.set(variant: :on).run(id: 1) }
     variant(:off) { "off" }
   end
 end

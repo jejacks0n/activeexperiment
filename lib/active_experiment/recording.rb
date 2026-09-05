@@ -86,7 +86,7 @@ module ActiveExperiment
 
       recorders = experiments.filter_map { |experiment| experiment.class.try(:recorder) }.uniq
       recorders.each do |recorder|
-        recorder.record_overlap(experiments) if recorder.recording?
+        recorder.record_executed(experiments) if recorder.recording?
       end
     end
 

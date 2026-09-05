@@ -321,13 +321,13 @@ Three things are stored:
 
 - **An entry per experiment** This includes the name of the experiment, the variants it registers, the rollout it uses, the cache store it uses, and when it was first and last seen being run.
 - **Daily counts per variant** How many runs, how many runs were skipped, how many raised exceptions, and how the variants came to be assigned.
-- **Overlaps** Experiments can overlap and be nested, so this allows us to see how often two experiments were run together, per pair of variants, and how often one was nested inside the other.
+- **Overlaps** How two experiments that ran together are related, per pair of variants. At depth 0 they simply ran together. Above that one ran inside the other, and the depth is how far apart they were, so depth 1 is the call graph and anything deeper is an experiment that only ran because something further up did.
 
 That last one is worth noting. Two experiments overlapping can be normal. What isn't normal is one experiment's variants being split differently inside each of another's, which means the two are entangled and neither experiment can be evaluated on its own.
 
 ### Reading it back
 
-A recorder answers four questions, and returns plain hashes, so something reporting on experiments doesn't have to know which recorder it's talking to:
+A recorder answers five questions, and returns plain hashes, so something reporting on experiments doesn't have to know which recorder it's talking to:
 
 ```ruby
 recorder = ActiveExperiment::Base.recorder
@@ -336,6 +336,7 @@ recorder.experiments                                          # list of experime
 recorder.experiment("my_experiment")                          # details of an experiment
 recorder.rollups("my_experiment", since: 2.weeks.ago.to_date) # daily counts
 recorder.overlaps("my_experiment")                            # co-occurrence details
+recorder.nestings("my_experiment")                            # what ran inside what
 ```
 
 
@@ -426,10 +427,9 @@ ActiveExperiment::Base.default_recorder = StatsdRecorder.new
     errored: 0,
     from_preset: 1 } }
 
-# overlaps
-{ ["banner_experiment", "on", "checkout_experiment", "red"] => {
-    count: 1,
-    nested_count: 0 } }
+# overlaps, keyed by the pair of variants and the depth between them
+{ ["banner_experiment", "on", "checkout_experiment", "red", 0] => {
+    count: 1 } }
 ```
 
 Counts are deltas. The `from_*` keys in the runs section say how each variant was decided, and only appear for sources that actually occurred.

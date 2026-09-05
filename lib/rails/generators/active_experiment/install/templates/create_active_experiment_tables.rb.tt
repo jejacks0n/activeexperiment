@@ -77,13 +77,13 @@ class CreateActiveExperimentTables < ActiveRecord::Migration[<%= ActiveRecord::M
       t.string :variant_a, null: false, limit: 64
       t.string :experiment_b, null: false, limit: 191
       t.string :variant_b, null: false, limit: 64
+      t.integer :depth, null: false, default: 0
       t.integer :count, null: false, default: 0
-      t.integer :nested_count, null: false, default: 0
       t.datetime :last_seen_at
     end
 
     add_index :active_experiment_overlaps,
-      [:experiment_a, :variant_a, :experiment_b, :variant_b],
+      [:experiment_a, :variant_a, :experiment_b, :variant_b, :depth],
       unique: true, name: "index_ae_overlaps_uniqueness"
 
     # == Caching

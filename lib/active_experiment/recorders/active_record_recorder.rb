@@ -64,7 +64,6 @@ module ActiveExperiment
 
       class Overlap < Record # :nodoc:
         self.table_name = "active_experiment_overlaps"
-        self.table_name = "active_experiment_overlaps"
       end
 
       # The unique index each table's upsert conflicts against. Not optional --
@@ -72,7 +71,7 @@ module ActiveExperiment
       UNIQUE_INDEXES = {
         Experiment => ["name"],
         Rollup => ["experiment", "variant", "date"],
-        Overlap => ["experiment_a", "variant_a", "experiment_b", "variant_b"]
+        Overlap => ["experiment_a", "variant_a", "experiment_b", "variant_b", "depth"]
       }.freeze
 
       def experiments
@@ -115,7 +114,7 @@ module ActiveExperiment
 
       def overlaps(experiment_name)
         name = experiment_name.to_s
-        scope = Overlap.where(experiment_a: name).or(Overlap.where(experiment_b: name))
+        scope = co_occurrences.where(experiment_a: name).or(co_occurrences.where(experiment_b: name))
 
         scope.order(count: :desc).map do |row|
           # Flipped so the experiment being asked about is always side A, which
@@ -128,7 +127,29 @@ module ActiveExperiment
             other_experiment: flip ? row.experiment_a : row.experiment_b,
             other_variant: (flip ? row.variant_a : row.variant_b).to_sym,
             count: row.count,
-            nested_count: row.nested_count,
+            last_seen_at: row.last_seen_at
+          }
+        end
+      end
+
+      # Every experiment this one has been run inside of, and every experiment
+      # run inside it. These are the rows a co-occurrence can't describe, so
+      # the pair is stored in the order it happened rather than a canonical
+      # one, and side A is the outer experiment.
+      def nestings(experiment_name)
+        name = experiment_name.to_s
+        scope = nested.where(experiment_a: name).or(nested.where(experiment_b: name))
+
+        scope.order(count: :desc).map do |row|
+          {
+            outer_experiment: row.experiment_a,
+            outer_variant: row.variant_a.to_sym,
+            inner_experiment: row.experiment_b,
+            inner_variant: row.variant_b.to_sym,
+            # 1 is a direct call. Anything deeper ran inside something that
+            # ran inside the outer one.
+            depth: row.depth,
+            count: row.count,
             last_seen_at: row.last_seen_at
           }
         end
@@ -204,20 +225,30 @@ module ActiveExperiment
           return if overlaps.empty?
 
           now = Time.current
-          rows = overlaps.map do |(experiment_a, variant_a, experiment_b, variant_b), counts|
+          rows = overlaps.map do |(experiment_a, variant_a, experiment_b, variant_b, depth), counts|
             {
               experiment_a: experiment_a,
               variant_a: variant_a,
               experiment_b: experiment_b,
               variant_b: variant_b,
+              depth: depth,
               count: counts[:count],
-              nested_count: counts[:nested_count],
               last_seen_at: now
             }
           end
 
           Overlap.upsert_all(rows,
-            **upsert_options(Overlap, increment: [:count, :nested_count], replace: [:last_seen_at]))
+            **upsert_options(Overlap, increment: [:count], replace: [:last_seen_at]))
+        end
+
+        # Two experiments that ran together without one being inside the other.
+        def co_occurrences
+          Overlap.where(depth: BaseRecorder::CO_OCCURRENCE)
+        end
+
+        # And the rows where one was inside the other, at any distance.
+        def nested
+          Overlap.where.not(depth: BaseRecorder::CO_OCCURRENCE)
         end
 
         # The options an upsert needs, which differ by adapter in two ways that

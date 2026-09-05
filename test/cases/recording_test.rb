@@ -170,8 +170,8 @@ class RecordingTest < ActiveSupport::TestCase
     @recorder.flush!
 
     assert_equal({
-      ["recording_test/other_experiment", "on", "recording_test/subject_experiment", "red"] =>
-        { count: 1, nested_count: 0 }
+      ["recording_test/other_experiment", "on", "recording_test/subject_experiment", "red", 0] =>
+        { count: 1 }
     }, @recorder.overlaps.transform_values(&:to_h))
   ensure
     OtherExperiment.recorder = ActiveExperiment::Base.recorder
@@ -215,23 +215,30 @@ class RecordingTest < ActiveSupport::TestCase
     ActiveExperiment::Executed.reset
     @recorder.flush!
 
-    assert_equal [["recording_test/other_experiment", "on", "recording_test/subject_experiment", "red"]],
+    assert_equal [["recording_test/other_experiment", "on", "recording_test/subject_experiment", "red", 0]],
       @recorder.overlaps.keys
   ensure
     OtherExperiment.recorder = ActiveExperiment::Base.recorder
   end
 
-  test "an experiment run inside another is flagged as nested" do
+  test "an experiment run inside another is recorded with its direction" do
     NestingExperiment.recorder = @recorder
 
     NestingExperiment.set(variant: :on).run(id: 1)
     ActiveExperiment::Executed.reset
     @recorder.flush!
 
-    counts = @recorder.overlaps.values.first
+    # The outer experiment comes first, so the row says which way round it
+    # went, which the overlap can't.
+    recorded = @recorder.overlaps.transform_values(&:to_h)
 
-    assert_equal 1, counts[:count]
-    assert_equal 1, counts[:nested_count]
+    # Depth 1 says which way round it went, which the co-occurrence row can't.
+    assert_equal({ count: 1 },
+      recorded[["recording_test/nesting_experiment", "on", "recording_test/other_experiment", "on", 1]])
+
+    # And they still co-occurred, since nesting means they ran together too.
+    assert_equal({ count: 1 },
+      recorded[["recording_test/nesting_experiment", "on", "recording_test/other_experiment", "on", 0]])
   ensure
     NestingExperiment.recorder = ActiveExperiment::Base.recorder
   end
