@@ -55,6 +55,16 @@ module ActiveExperiment
   class Executed < ActiveSupport::CurrentAttributes
     attribute :experiments
 
+    # The end of a request or job, which is the only point at which we know all
+    # experiments that have run are complete. To understand the full nesting,
+    # we wait until they're all done before recording the results.
+    #
+    # Rails resets CurrentAttributes through its executor, so this fires at the
+    # end of requests, jobs, and each test case. Outside of Rails nothing
+    # resets it though, so you need to call +ActiveExperiment::Executed.reset+
+    # yourself at the end of whatever lifecycle you're using.
+    before_reset { ActiveExperiment::Recording.record_executed(experiments) }
+
     # Interface to add an experiment to the executed experiments. This is
     # intended to be used by the +run+ method of the experiment class.
     #

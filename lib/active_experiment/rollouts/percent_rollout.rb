@@ -57,7 +57,38 @@ module ActiveExperiment
         end
       end
 
+      # The declared distribution, alongside what +BaseRollout#describe+
+      # reports.
+      def describe # :nodoc:
+        super.merge(distribution: distribution)
+      end
+
       private
+        # The percentage of contexts each variant is expected to be assigned,
+        # keyed by variant name.
+        #
+        # Rules are normalized here rather than reported as they were written,
+        # since the same split can be declared as a hash, an array matching the
+        # variants, or left out entirely for an even split.
+        #
+        # Returns an empty hash when the variants aren't registered yet and the
+        # rules alone don't name them.
+        def distribution
+          variant_names = @experiment_class.try(:variants)&.keys || []
+
+          case rules
+          when Hash then rules.to_h { |variant, percent| [variant.to_sym, percent.to_f] }
+          when Array then variant_names.zip(rules.map(&:to_f)).to_h
+          else
+            # An even split is what +variant_for+ falls back to, dividing the
+            # run key across the variants with a modulo.
+            return {} if variant_names.empty?
+
+            even = 100.0 / variant_names.length
+            variant_names.index_with { even }
+          end
+        end
+
         # Determine which of the declared percentages the run key lands within.
         #
         # The percentages are widths, so 25, 30, 45 means the boundaries are at

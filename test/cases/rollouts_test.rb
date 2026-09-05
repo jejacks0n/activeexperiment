@@ -95,6 +95,32 @@ class RolloutsTest < ActiveSupport::TestCase
     assert_equal "Provide a rollout class, the name of one, or a Pathname to one", error.message
   end
 
+  test "a rollout describes itself by the name it was registered as" do
+    # Unlike cache stores and recorders, looking a rollout up hands back the
+    # class rather than an instance.
+    described = ActiveExperiment::Rollouts.lookup(:random).new(nil).describe
+
+    assert_equal :random, described[:type]
+    assert_equal({}, described[:options])
+    # Most rollouts can't say how they'll distribute, and saying nothing is
+    # the honest answer rather than a guess.
+    assert_nil described[:distribution]
+  end
+
+  test "a rollout that was never registered describes itself by class" do
+    rollout = Class.new(ActiveExperiment::Rollouts::BaseRollout) do
+      def self.name = "UnregisteredRollout"
+    end
+
+    assert_equal "UnregisteredRollout", rollout.new(nil).describe[:type]
+  end
+
+  test "a rollout describes the options it was given" do
+    rollout = ActiveExperiment::Rollouts.lookup(:random).new(nil, weight: 3)
+
+    assert_equal({ weight: 3 }, rollout.describe[:options])
+  end
+
   test "trying to look up a rollout that doesn't exist" do
     error = assert_raises(ArgumentError) do
       ActiveExperiment::Rollouts.lookup(:missing)

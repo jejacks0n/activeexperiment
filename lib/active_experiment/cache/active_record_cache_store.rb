@@ -20,10 +20,11 @@ module ActiveExperiment
     #   key: experiment name : run key
     #   value: cache entry
     #
-    # To use this cache in an experiment the table needs to be created. All
-    # experiments will use the same table by default for their cache store, and
-    # can be distinguishable by the experiment name that's part of the cache
-    # key.
+    # To use this cache in an experiment the table needs to be created, which
+    # +bin/rails generate active_experiment:install+ writes a migration for.
+    # All experiments will use the same table by default for their cache store,
+    # and can be distinguishable by the experiment name that's part of the
+    # cache key.
     #
     #   create_table :active_experiment_cache_entries, id: false do |t|
     #     t.string :key, null: false

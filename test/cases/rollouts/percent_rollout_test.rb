@@ -141,6 +141,45 @@ class PercentRolloutTest < ActiveSupport::TestCase
     assert_equal "The provided rules don't match the number of variants", error.message
   end
 
+  test "describing an even split" do
+    SubjectExperiment.use_rollout(:percent)
+
+    described = SubjectExperiment.rollout.describe
+
+    assert_equal :percent, described[:type]
+    assert_equal({ red: 100 / 3.0, blue: 100 / 3.0, green: 100 / 3.0 }, described[:distribution])
+  end
+
+  test "describing rules given as a hash" do
+    SubjectExperiment.use_rollout(:percent, rules: { red: 25, blue: 30, green: 45 })
+
+    assert_equal({ red: 25.0, blue: 30.0, green: 45.0 },
+      SubjectExperiment.rollout.describe[:distribution])
+  end
+
+  test "describing rules given as an array" do
+    SubjectExperiment.use_rollout(:percent, rules: [25, 30, 45])
+
+    # Positional against the variants, which is the whole of what an array
+    # means -- so describing it has to put the names back.
+    assert_equal({ red: 25.0, blue: 30.0, green: 45.0 },
+      SubjectExperiment.rollout.describe[:distribution])
+  end
+
+  test "the rules are reported alongside the distribution they normalize to" do
+    SubjectExperiment.use_rollout(:percent, rules: [25, 30, 45])
+
+    assert_equal({ rules: [25, 30, 45] }, SubjectExperiment.rollout.describe[:options])
+  end
+
+  test "describing a rollout whose variants aren't registered yet" do
+    rollout = ActiveExperiment::Rollouts::PercentRollout.new(nil)
+
+    # Nothing to name the shares after, and nothing to compare a split
+    # against, so there's no distribution to report.
+    assert_empty rollout.describe[:distribution]
+  end
+
   test "providing unknown types of rules isn't allowed" do
     error = assert_raises(ArgumentError) do
       SubjectExperiment.use_rollout(:percent, rules: :symbol)

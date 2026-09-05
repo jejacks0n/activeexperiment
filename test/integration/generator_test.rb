@@ -69,6 +69,58 @@ describe "using the rails generator" do
     end
   end
 
+  it "generates a migration that creates every table" do
+    # From a clean schema, whatever any other integration test left behind --
+    # the migration is what's under test, so it has to be the thing that
+    # creates them.
+    connection = ActiveRecord::Base.connection
+    %w[
+      active_experiment_experiments active_experiment_rollups
+      active_experiment_overlaps active_experiment_cache_entries
+    ].each { |table| connection.drop_table(table, if_exists: true) }
+
+    run_command("rails g active_experiment:install") do |stdout, _stderr, status|
+      assert_equal 0, status
+      assert_match(/create\s+db\/migrate\/\d+_create_active_experiment_tables\.rb/, stdout)
+    end
+
+    migration = Dir[Rails.root.join("db/migrate/*_create_active_experiment_tables.rb")].sole
+    generated = File.read(migration)
+
+    # Both halves, and the comments that say when each is wanted -- the
+    # migration is meant to be read and edited before it's run.
+    assert_includes generated, "create_table :active_experiment_experiments"
+    assert_includes generated, "create_table :active_experiment_rollups"
+    assert_includes generated, "create_table :active_experiment_overlaps"
+    assert_includes generated, "create_table :active_experiment_cache_entries"
+    assert_includes generated, "== Recording"
+    assert_includes generated, "== Caching"
+
+    # Every column the overlaps index spans has to stay bounded. MySQL measures
+    # an index in bytes, and four unbounded varchars come to 4080 under
+    # utf8mb4 -- past the 3072 InnoDB allows. Asserted here because otherwise
+    # only a MySQL run would notice, and that's a slow way to find out.
+    overlaps = generated[/create_table :active_experiment_overlaps.*?\n    end/m]
+    assert_equal 4, overlaps.scan(/limit: \d+/).length
+    assert_operator overlaps.scan(/limit: (\d+)/).flatten.sum { |limit| limit.to_i * 4 }, :<=, 3072
+
+    run_command("rails db:migrate") { |_stdout, _stderr, status| assert_equal 0, status }
+
+    connection = ActiveRecord::Base.connection
+    connection.schema_cache.clear!
+
+    %w[
+      active_experiment_experiments active_experiment_rollups
+      active_experiment_overlaps active_experiment_cache_entries
+    ].each { |table| assert connection.table_exists?(table), "#{table} wasn't created" }
+
+    # Every table an upsert conflicts against needs its unique index.
+    assert connection.indexes("active_experiment_cache_entries").any? { |i| i.unique && i.columns == ["key"] }
+    assert connection.indexes("active_experiment_rollups").any? { |i| i.unique }
+  ensure
+    File.delete(*Dir[Rails.root.join("db/migrate/*_create_active_experiment_tables.rb")])
+  end
+
   def run_generator(options, &block)
     run_command("rails g experiment #{options}", &block)
   end

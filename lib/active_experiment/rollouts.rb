@@ -144,6 +144,22 @@ module ActiveExperiment
       @registry ||= BUILT_IN.dup
     end
 
+    # The name a rollout class was registered as, or +nil+ for one that wasn't
+    # registered at all -- an experiment can be handed a rollout instance
+    # directly, and never has to name it.
+    def self.name_for(rollout_class)
+      name = rollout_class.try(:name)
+
+      registry.each do |registered_name, rollout|
+        case rollout
+        when Class then return registered_name if rollout == rollout_class
+        when String then return registered_name if name && rollout == name
+        end
+      end
+
+      nil
+    end
+
     # The file a +Pathname+ points at is expected to define a rollout named for
     # what it was registered as, usually at the top level.
     def self.load_rollout(name, path) # :nodoc:
@@ -185,6 +201,29 @@ module ActiveExperiment
       # The base rollout always assigns the first variant.
       def variant_for(experiment)
         experiment.variant_names.first
+      end
+
+      # How this rollout would describe itself to something reporting on the
+      # experiment, as a hash of:
+      #
+      # [+:type+]
+      #   The name it was registered as, falling back to the class name.
+      # [+:options+]
+      #   Whatever was passed along with +use_rollout+.
+      # [+:distribution+]
+      #   The share of contexts each variant is expected to be assigned, as
+      #   percentages keyed by variant name -- or +nil+ from a rollout that
+      #   can't say, which is most of them.
+      #
+      # Rollouts aren't required to implement this. An experiment can use
+      # anything responding to +skipped_for+ and +variant_for+ as its rollout,
+      # including itself, so callers should use +rollout.try(:describe)+.
+      def describe
+        {
+          type: Rollouts.name_for(self.class) || self.class.name,
+          options: @rollout_options,
+          distribution: nil
+        }
       end
     end
   end

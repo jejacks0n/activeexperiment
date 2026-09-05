@@ -70,6 +70,13 @@ module ActiveExperiment
     #   (generally means the rollout might not be working correctly)
     attr_reader :variant_source
 
+    # The experiment this one was nested in, or +nil+ if not nested.
+    #
+    # Nesting isn't prevented, and isn't wrong on its own, but nested
+    # experiments can cause confounding factors that may need to be considered
+    # together, or at least not entirely independently of each other.
+    attr_reader :nested_within
+
     # Experiment options.
     #
     # Generally not used within the core library, this is provided to expose
@@ -175,6 +182,15 @@ module ActiveExperiment
       return @skip if defined?(@skip)
 
       @skip = self.rollout.skipped_for(self)
+    end
+
+    # Whether this run was skipped, without asking the rollout.
+    #
+    # +skipped?+ asks the rollout when nothing has asked yet, which can be the
+    # wrong thing to do after the fact -- a run that raised may never have
+    # asked.
+    def skipped_run?
+      defined?(@skip) ? !!@skip : false
     end
 
     # Returns a hash with the experiment data.
