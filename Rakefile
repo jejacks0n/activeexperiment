@@ -2,8 +2,22 @@
 
 require "bundler/gem_tasks"
 require "rake/testtask"
+require "rdoc/task"
+require_relative "lib/active_experiment/version"
 
-# rdoc --main README.rdoc -i lib/active_experiment/**/*
+desc "Generate API documentation using sdoc"
+RDoc::Task.new("doc:api") do |rdoc|
+  ENV["HORO_PROJECT_NAME"] ||= "Active Experiment"
+  ENV["HORO_PROJECT_VERSION"] ||= "v#{ActiveExperiment.version}"
+  ENV["HORO_BADGE_VERSION"] ||= "v#{ActiveExperiment.version}"
+
+  rdoc.generator = "sdoc"
+  rdoc.template = "rails"
+  rdoc.main = "README.md"
+  rdoc.title = "Active Experiment API Documentation"
+  rdoc.rdoc_dir = "doc"
+  rdoc.rdoc_files.include("README.md", "CHANGELOG.md", "lib/**/*.rb")
+end
 
 task default: :test
 
