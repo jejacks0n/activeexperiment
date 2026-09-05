@@ -96,8 +96,7 @@ module ActiveExperiment
         attributes = attributes.merge(name: experiment_name.to_s)
 
         Experiment.upsert_all([attributes],
-          unique_by: :name,
-          on_duplicate: conflict_update(Experiment, replace: attributes.keys - [:name]))
+          **upsert_options(Experiment, replace: attributes.keys - [:name]))
 
         experiment(experiment_name)
       end
@@ -184,8 +183,7 @@ module ActiveExperiment
           # only +update_experiment+ writes: an experiment being run says
           # nothing about the state somebody put it in.
           Experiment.upsert_all(rows,
-            unique_by: :name,
-            on_duplicate: conflict_update(Experiment,
+            **upsert_options(Experiment,
               replace: [:class_name, :variant_names, :default_variant, :rollout, :cache_store, :last_seen_at]))
         end
 
@@ -197,9 +195,7 @@ module ActiveExperiment
               .merge(COUNTERS.index_with { |counter| counts[counter] })
           end
 
-          Rollup.upsert_all(rows,
-            unique_by: [:experiment, :variant, :date],
-            on_duplicate: conflict_update(Rollup, increment: COUNTERS))
+          Rollup.upsert_all(rows, **upsert_options(Rollup, increment: COUNTERS))
         end
 
         def write_overlaps(overlaps)
@@ -219,35 +215,73 @@ module ActiveExperiment
           end
 
           Overlap.upsert_all(rows,
-            unique_by: [:experiment_a, :variant_a, :experiment_b, :variant_b],
-            on_duplicate: conflict_update(Overlap, increment: [:count, :nested_count], replace: [:last_seen_at]))
+            **upsert_options(Overlap, increment: [:count, :nested_count], replace: [:last_seen_at]))
         end
 
-        # The SET clause for an upsert, where counters are added to what's
-        # already stored and everything else is overwritten.
+        # The options an upsert needs, which differ by adapter in two ways that
+        # travel together.
         #
-        # Adapters don't agree on how to name the row that's being inserted:
-        # PostgreSQL and SQLite expose it as +excluded+ and need the existing
-        # row qualified by table name to tell the two apart, and MySQL has
-        # neither, using an unqualified column for the stored value and
-        # +VALUES()+ for the incoming one.
-        def conflict_update(model, increment: [], replace: [])
+        # PostgreSQL and SQLite conflict against a named target and expose the
+        # incoming row as +excluded+, so the stored row has to be qualified by
+        # table name to tell the two apart. MySQL has neither: it conflicts
+        # against whatever unique key the row violates, names the stored value
+        # with a bare column and the incoming one with +VALUES()+, and rejects
+        # +unique_by+ outright rather than ignoring it.
+        #
+        # Counters are added to what's already stored, since every process
+        # flushes its own deltas. Everything else is overwritten.
+        def upsert_options(model, increment: [], replace: [])
           model.connection_pool.with_connection do |connection|
             table = model.quoted_table_name
-            excluded = connection.supports_insert_conflict_target?
+            targeted = connection.supports_insert_conflict_target?
+
+            # PostgreSQL and SQLite reject the upsert outright when the unique
+            # index is missing, so a mistake there surfaces on the first write.
+            # MySQL doesn't: with nothing to conflict against it simply
+            # inserts, duplicate rows accumulate, and every count reads low
+            # forever. Checked up front there, once per model rather than per
+            # write, because there's no failure to check after.
+            verify_unique_index!(model, connection) unless targeted
 
             sets = increment.map do |column|
               column = connection.quote_column_name(column)
-              excluded ? "#{column} = #{table}.#{column} + excluded.#{column}" : "#{column} = #{column} + VALUES(#{column})"
+              targeted ? "#{column} = #{table}.#{column} + excluded.#{column}" : "#{column} = #{column} + VALUES(#{column})"
             end
 
             sets += replace.map do |column|
               column = connection.quote_column_name(column)
-              excluded ? "#{column} = excluded.#{column}" : "#{column} = VALUES(#{column})"
+              targeted ? "#{column} = excluded.#{column}" : "#{column} = VALUES(#{column})"
             end
 
-            Arel.sql(sets.join(", "))
+            options = { on_duplicate: Arel.sql(sets.join(", ")) }
+            options[:unique_by] = UNIQUE_INDEXES.fetch(model) if targeted
+            options
           end
+        end
+
+        def verify_unique_index!(model, connection)
+          verified_indexes.compute_if_absent(model.name) do
+            check_unique_index!(model, connection)
+            true
+          end
+        end
+
+        def verified_indexes
+          @verified_indexes ||= Concurrent::Map.new
+        end
+
+        def check_unique_index!(model, connection)
+          columns = UNIQUE_INDEXES.fetch(model)
+          return if connection.indexes(model.table_name).any? { |index| index.unique && index.columns == columns }
+
+          raise ExecutionError, <<~MESSAGE.squish
+            The #{model.table_name} table needs a unique index on
+            #{columns.to_sentence}. Every process flushes its own counts as
+            deltas that are added to the stored row, and the upsert that does
+            it has nothing to conflict against without one. Re-run
+            `bin/rails generate active_experiment:install` for the migration
+            that creates it.
+          MESSAGE
         end
 
         # Checked only after a write has already failed, so it costs nothing on
@@ -267,23 +301,9 @@ module ActiveExperiment
             MESSAGE
           end
 
-          unindexed = UNIQUE_INDEXES.reject do |model, columns|
-            model.connection_pool.with_connection do |connection|
-              connection.indexes(model.table_name).any? { |index| index.unique && index.columns == columns }
-            end
+          UNIQUE_INDEXES.each_key do |model|
+            model.connection_pool.with_connection { |connection| check_unique_index!(model, connection) }
           end
-          return if unindexed.empty?
-
-          model, columns = unindexed.first
-
-          raise ExecutionError, <<~MESSAGE.squish
-            The #{model.table_name} table needs a unique index on
-            #{columns.to_sentence}. Every process flushes its own counts as
-            deltas that are added to the stored row, and the upsert that does
-            it has nothing to conflict against without one. Re-run
-            `bin/rails generate active_experiment:install` for the migration
-            that creates it.
-          MESSAGE
         end
 
         def experiment_attributes(row)

@@ -31,7 +31,7 @@ class ActiveRecordRecorderTestCase < ActiveSupport::TestCase
 
     connection.drop_table("active_experiment_experiments", if_exists: true)
     connection.create_table("active_experiment_experiments") do |t|
-      t.string :name, null: false
+      t.string :name, null: false, limit: 191
       t.string :class_name
       t.string :state, null: false, default: "running"
       t.text :variant_names
@@ -49,8 +49,8 @@ class ActiveRecordRecorderTestCase < ActiveSupport::TestCase
 
     connection.drop_table("active_experiment_rollups", if_exists: true)
     connection.create_table("active_experiment_rollups") do |t|
-      t.string :experiment, null: false
-      t.string :variant, null: false
+      t.string :experiment, null: false, limit: 191
+      t.string :variant, null: false, limit: 64
       t.date :date, null: false
       RECORDER::COUNTERS.each { |counter| t.integer counter, null: false, default: 0 }
     end
@@ -59,10 +59,10 @@ class ActiveRecordRecorderTestCase < ActiveSupport::TestCase
 
     connection.drop_table("active_experiment_overlaps", if_exists: true)
     connection.create_table("active_experiment_overlaps") do |t|
-      t.string :experiment_a, null: false
-      t.string :variant_a, null: false
-      t.string :experiment_b, null: false
-      t.string :variant_b, null: false
+      t.string :experiment_a, null: false, limit: 191
+      t.string :variant_a, null: false, limit: 64
+      t.string :experiment_b, null: false, limit: 191
+      t.string :variant_b, null: false, limit: 64
       t.integer :count, null: false, default: 0
       t.integer :nested_count, null: false, default: 0
       t.datetime :last_seen_at

@@ -16,11 +16,17 @@ class CreateActiveExperimentTables < ActiveRecord::Migration[<%= ActiveRecord::M
     # pair of experiments seen together -- so they stay small whatever the
     # traffic is.
 
+    # The indexed string columns carry a length because MySQL measures an index
+    # in bytes rather than characters. Under utf8mb4 a default varchar(255) is
+    # 1020 of them, which puts the four column index on the overlaps table below
+    # at 4080 -- past InnoDB's 3072 byte limit, and rejected outright. These
+    # hold experiment and variant names, so the room isn't wanted anyway.
+
     # One row per experiment that's been seen. Rows outlive the classes that
     # wrote them on purpose: an experiment that was deleted while its
     # assignments are still cached is worth being able to notice.
     create_table :active_experiment_experiments do |t|
-      t.string :name, null: false
+      t.string :name, null: false, limit: 191
       t.string :class_name
       t.string :state, null: false, default: "running"
       t.text :variant_names
@@ -44,8 +50,8 @@ class CreateActiveExperimentTables < ActiveRecord::Migration[<%= ActiveRecord::M
     # The from_* counters break down how the variant came to be assigned, and
     # sum to runs.
     create_table :active_experiment_rollups do |t|
-      t.string :experiment, null: false
-      t.string :variant, null: false
+      t.string :experiment, null: false, limit: 191
+      t.string :variant, null: false, limit: 64
       t.date :date, null: false
 
       t.integer :runs, null: false, default: 0
@@ -67,10 +73,10 @@ class CreateActiveExperimentTables < ActiveRecord::Migration[<%= ActiveRecord::M
     # How often two experiments were run together, per pair of variants. Pairs
     # are stored in a canonical order, so a pair is one row rather than two.
     create_table :active_experiment_overlaps do |t|
-      t.string :experiment_a, null: false
-      t.string :variant_a, null: false
-      t.string :experiment_b, null: false
-      t.string :variant_b, null: false
+      t.string :experiment_a, null: false, limit: 191
+      t.string :variant_a, null: false, limit: 64
+      t.string :experiment_b, null: false, limit: 191
+      t.string :variant_b, null: false, limit: 64
       t.integer :count, null: false, default: 0
       t.integer :nested_count, null: false, default: 0
       t.datetime :last_seen_at
