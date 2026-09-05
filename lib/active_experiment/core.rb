@@ -62,6 +62,8 @@ module ActiveExperiment
     # One of:
     #
     # * +:preset+ -- provided before the run, through +set(variant:)+.
+    # * +:concluded+ -- the experiment has been concluded, so the variant that
+    #   won is assigned to everyone. See ActiveExperiment::Lifecycle.
     # * +:skipped+ -- the run was skipped, so the default variant was used.
     # * +:cached+ -- read back from the cache store.
     # * +:segment+ -- a segment rule assigned it.

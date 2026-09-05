@@ -98,6 +98,31 @@ describe "the railtie" do
     Rails.application.load_tasks
 
     assert_includes Rake::Task.tasks.map(&:name), "active_experiment:forget"
+    assert_includes Rake::Task.tasks.map(&:name), "active_experiment:conclude"
+    assert_includes Rake::Task.tasks.map(&:name), "active_experiment:archive"
+    assert_includes Rake::Task.tasks.map(&:name), "active_experiment:reopen"
+  end
+
+  it "concludes an experiment through the rake task" do
+    recorder = ActiveExperiment::Recorders::ActiveRecordRecorder.new
+    original, ActiveExperiment::Base.recorder = ActiveExperiment::Base.recorder, recorder
+    create_recorder_tables
+    RenamedExperiment.refresh_lifecycle!
+
+    Rails.application.load_tasks
+    output = capture_stdout do
+      Rake::Task["active_experiment:conclude"].tap(&:reenable).invoke("RenamedExperiment", "red", "red won")
+    end
+
+    assert_match(/concluded on red/, output)
+    assert_equal :concluded, RenamedExperiment.state
+    assert_equal :red, RenamedExperiment.winning_variant
+    # And it went to the record the class writes to, rather than the class name.
+    assert_equal :concluded, recorder.experiment("original_experiment")[:state]
+  ensure
+    ActiveExperiment::Base.recorder = original
+    RenamedExperiment.refresh_lifecycle!
+    drop_recorder_tables
   end
 
   it "forgets an experiment through the rake task" do
