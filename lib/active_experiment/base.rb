@@ -8,6 +8,7 @@ require "active_experiment/caching"
 require "active_experiment/callbacks"
 require "active_experiment/execution"
 require "active_experiment/instrumentation"
+require "active_experiment/lifecycle"
 require "active_experiment/logging"
 require "active_experiment/record_subscriber"
 require "active_experiment/recording"
@@ -67,6 +68,7 @@ module ActiveExperiment
     include Callbacks
     include Execution
     include Instrumentation
+    include Lifecycle
     include Logging
     include Recording
     include Rollout

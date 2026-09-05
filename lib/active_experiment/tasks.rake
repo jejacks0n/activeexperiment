@@ -1,6 +1,48 @@
 # frozen_string_literal: true
 
 namespace :active_experiment do
+  # These need the class, unlike forgetting. The state they write goes to the
+  # experiment's own recorder, and there isn't much to conclude about an
+  # experiment that no longer exists.
+  def active_experiment(given) # :nodoc:
+    raise "Provide an experiment, like `active_experiment:conclude[MyExperiment,red]`" if given.blank?
+
+    experiment_class = given.camelize.safe_constantize
+    unless experiment_class.is_a?(Class) && experiment_class <= ActiveExperiment::Base
+      raise "No experiment class named #{given.camelize}."
+    end
+
+    experiment_class
+  end
+
+  desc "Conclude an experiment on a variant, which is then assigned to everyone"
+  task :conclude, [:experiment, :variant, :notes] => :environment do |_task, args|
+    experiment = active_experiment(args[:experiment])
+    raise "Provide the variant that won" if args[:variant].blank?
+
+    experiment.conclude!(variant: args[:variant], notes: args[:notes])
+
+    puts "#{experiment.name} concluded on #{experiment.winning_variant}, which every context is now assigned."
+    puts "Its cached assignments are still there, so this can still be reversed. " \
+      "Clear them once you're sure."
+  end
+
+  desc "Put a concluded or archived experiment back to running"
+  task :reopen, [:experiment] => :environment do |_task, args|
+    experiment = active_experiment(args[:experiment])
+    experiment.reopen!
+
+    puts "#{experiment.name} is running again, and resolves variants the way it did before."
+  end
+
+  desc "Mark an experiment as no longer interesting, without changing what it assigns"
+  task :archive, [:experiment, :notes] => :environment do |_task, args|
+    experiment = active_experiment(args[:experiment])
+    experiment.archive!(notes: args[:notes])
+
+    puts "#{experiment.name} archived. It still assigns what it assigned before."
+  end
+
   desc "Delete everything recorded about an experiment"
   task :forget, [:experiment] => :environment do |_task, args|
     given = args[:experiment].to_s

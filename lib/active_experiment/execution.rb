@@ -37,8 +37,13 @@ module ActiveExperiment
   # In general, the following decision tree diagram helps illustrate the order
   # that things will be executed in running an experiment, utilizing caching
   # when possible:
-  #                             run
-  #                              |
+  #                                    run
+  #                                     |
+  #                               _ concluded? _
+  #                              |              |
+  #                              no            yes
+  #                              |              |
+  #                              |      concluded_variant (winning variant)
   #                         _ skipped? _
   #                        |            |
   #                        no          yes
@@ -155,6 +160,14 @@ module ActiveExperiment
     private
       # Resolves the variant, and understands how it was resolved.
       def resolve_variant
+        # Checked before the skip check, because the decision has already been
+        # made in a concluded experiment. An explicitly set variant still wins
+        # however, so a run can still be forced to a particular branch.
+        if !variant && (concluded = concluded_variant)
+          @variant_source = :concluded
+          return concluded
+        end
+
         if skipped?
           @variant_source = variant ? :preset : :skipped
           return variant || default_variant
