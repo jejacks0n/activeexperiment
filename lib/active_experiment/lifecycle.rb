@@ -49,58 +49,6 @@ module ActiveExperiment
     # anymore can be kept out of the way.
     STATES = [:running, :concluded, :archived].freeze
 
-    # Holds the recorded state of every experiment sharing one recorder, so a
-    # process asks once per interval rather than once per experiment. There are
-    # usually only a handful of rows, and almost none of them concluded, so
-    # fetching the lot costs less than asking about each one separately.
-    class StateCache # :nodoc:
-      def initialize(recorder)
-        @recorder = recorder
-        @lock = Mutex.new
-        @states = {}
-        @checked_at = nil
-      end
-
-      def [](experiment_name, interval)
-        refresh(interval)
-
-        @states[experiment_name]
-      end
-
-      def expire!
-        @checked_at = nil
-      end
-
-      private
-        def refresh(interval)
-          return if fresh?(interval)
-
-          @lock.synchronize do
-            # Checked again inside the lock, since another thread may have
-            # refreshed it while this one was waiting.
-            return if fresh?(interval)
-
-            @states = @recorder.experiments.index_by { |row| row[:name] }
-            @checked_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-          end
-        end
-
-        def fresh?(interval)
-          @checked_at && Process.clock_gettime(Process::CLOCK_MONOTONIC) - @checked_at < interval
-        end
-    end
-
-    # One cache per recorder, since experiments can be configured with
-    # different ones.
-    def self.state_cache(recorder) # :nodoc:
-      @state_caches ||= {}
-      @state_cache_lock ||= Mutex.new
-
-      @state_caches[recorder] || @state_cache_lock.synchronize do
-        @state_caches[recorder] ||= StateCache.new(recorder)
-      end
-    end
-
     included do
       class_attribute :lifecycle_refresh_interval,
         instance_writer: false, instance_predicate: false, default: 60
@@ -162,7 +110,7 @@ module ActiveExperiment
       # the recorder. Mostly useful in tests, or right after concluding from a
       # console.
       def refresh_lifecycle!
-        Lifecycle.state_cache(recorder).expire! if recorder.recording?
+        recorder.expire_recorded_state!
         self
       end
 
@@ -173,7 +121,7 @@ module ActiveExperiment
           # returns early.
           return nil unless recorder.recording?
 
-          Lifecycle.state_cache(recorder)[experiment_name, lifecycle_refresh_interval]
+          recorder.recorded_state(experiment_name, lifecycle_refresh_interval)
         end
 
         def write_lifecycle(**attributes)

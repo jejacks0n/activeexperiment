@@ -2,6 +2,7 @@
 
 require "date"
 require "active_support/core_ext/date/calculations"
+require "active_support/core_ext/enumerable"
 
 module ActiveExperiment
   module Recorders
@@ -63,6 +64,45 @@ module ActiveExperiment
       # some way this doesn't know about.
       SOURCES = [:preset, :skipped, :cached, :segment, :rollout, :default, :concluded].freeze
 
+      # Holds the recorded state of every experiment on one recorder, so a
+      # process asks once per interval rather than once per experiment.
+      class StateCache # :nodoc:
+        def initialize(recorder)
+          @recorder = recorder
+          @lock = Mutex.new
+          @states = {}
+          @checked_at = nil
+        end
+
+        def fetch(experiment_name, ttl)
+          refresh(ttl)
+
+          @states[experiment_name]
+        end
+
+        def expire!
+          @checked_at = nil
+        end
+
+        private
+          def refresh(ttl)
+            return if fresh?(ttl)
+
+            @lock.synchronize do
+              # Checked again inside the lock, since another thread may have
+              # refreshed it while this one was waiting.
+              return if fresh?(ttl)
+
+              @states = @recorder.experiments.index_by { |row| row[:name] }
+              @checked_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+            end
+          end
+
+          def fresh?(ttl)
+            @checked_at && Process.clock_gettime(Process::CLOCK_MONOTONIC) - @checked_at < ttl
+          end
+      end
+
       attr_reader :flush_interval, :flush_threshold, :options
 
       def initialize(flush_interval: DEFAULT_FLUSH_INTERVAL, flush_threshold: DEFAULT_FLUSH_THRESHOLD, **options)
@@ -72,6 +112,7 @@ module ActiveExperiment
 
         @lock = Mutex.new
         @last_flush = monotonic_now
+        @state_cache = StateCache.new(self)
         clear_buffer
       end
 
@@ -198,6 +239,25 @@ module ActiveExperiment
         discard_buffered(experiment_name)
 
         delete_recorded(experiment_name)
+      end
+
+      # The recorded state of one experiment, held for +ttl+ seconds and shared
+      # by every experiment using this recorder.
+      #
+      # ActiveExperiment::Lifecycle reads this on the path of every run, where
+      # a query per experiment per interval adds up. Fetching every row at once
+      # and holding it briefly means a process asks once however many
+      # experiments it runs, and there are only ever a handful of rows.
+      #
+      # +experiments+ is left uncached underneath it, since a report wants what
+      # is there now rather than what was there a minute ago.
+      def recorded_state(experiment_name, ttl)
+        @state_cache.fetch(experiment_name, ttl)
+      end
+
+      # Drops the held copy, so the next read goes back to the datastore.
+      def expire_recorded_state!
+        @state_cache.expire!
       end
 
       # Daily variant rollups for one experiment, oldest first.
