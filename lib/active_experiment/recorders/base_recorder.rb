@@ -188,6 +188,9 @@ module ActiveExperiment
       # that you could lose overlap data for experiments that aren't the one
       # you're deleting.
       #
+      # This removes what was recorded. The variant assignments the experiment
+      # cached are separate, and get cleared with +clear_cache+.
+      #
       # Returns how many rows went, keyed by what they were -- the same keys
       # +NOTHING_DELETED+ carries, whether or not anything matched.
       def delete_experiment(experiment_name)

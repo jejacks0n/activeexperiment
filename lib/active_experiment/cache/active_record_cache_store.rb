@@ -121,6 +121,15 @@ module ActiveExperiment
       LIKE_ESCAPE = "!"
       private_constant :LIKE_ESCAPE
 
+      # Deleting a bounded number of rows isn't portable. PostgreSQL has no
+      # LIMIT on DELETE at all, SQLite only has one when it was compiled for
+      # it, and MySQL has one but rejects LIMIT inside an IN subquery.
+      # Selecting the keys through a derived table works on all three.
+      BATCH_DELETE_STATEMENT = "DELETE FROM %<table>s WHERE %<key>s IN " \
+        "(SELECT * FROM (SELECT %<key>s FROM %<table>s WHERE %<key>s LIKE ? " \
+        "ESCAPE '#{LIKE_ESCAPE}' LIMIT %<limit>d) AS batch)"
+      private_constant :BATCH_DELETE_STATEMENT
+
       def length(options = nil)
         options = merged_options(options)
 
@@ -148,6 +157,29 @@ module ActiveExperiment
 
         update(options, "DELETE FROM %<table>s WHERE %<key>s LIKE ? ESCAPE '#{LIKE_ESCAPE}'",
           key_matcher(matcher, options))
+      end
+
+      # The same deletion as +delete_matched+, a chunk at a time, yielding the
+      # size of each chunk and the running total. Returns the number of entries
+      # deleted.
+      def delete_matched_in_batches(matcher, batch_size: 1_000, options: nil)
+        options = merged_options(options)
+        matcher = key_matcher(matcher, options)
+        batch_size = Integer(batch_size)
+        raise ArgumentError, "batch_size has to be positive" unless batch_size.positive?
+
+        statement = BATCH_DELETE_STATEMENT.sub("%<limit>d", batch_size.to_s)
+
+        total = 0
+        loop do
+          deleted = update(options, statement, matcher)
+          break if deleted.zero?
+
+          total += deleted
+          yield(deleted, total) if block_given?
+        end
+
+        total
       end
 
       private

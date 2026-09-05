@@ -126,6 +126,18 @@ class CachingTest < ActiveSupport::TestCase
     SubjectExperiment.cache_store = original
   end
 
+  test "clearing a store that can't delete in batches" do
+    experiment = Class.new(SubjectExperiment) do
+      def self.name = "UnbatchableExperiment"
+
+      use_cache_store :memory_store
+    end
+
+    error = assert_raises(ActiveExperiment::ExecutionError) { experiment.clear_cache(batch_size: 10) }
+
+    assert_match(/can't delete entries in batches/, error.message)
+  end
+
   test "counting the entries of a store that can't count them" do
     experiment = Class.new(SubjectExperiment) do
       def self.name = "UncountableExperiment"

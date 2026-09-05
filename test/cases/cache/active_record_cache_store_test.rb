@@ -81,6 +81,51 @@ class ActiveRecordCacheStoreTestCase < ActiveSupport::TestCase
     assert_equal 0, experiment.cache_store.length
   end
 
+  test "deleting matched keys in batches" do
+    store = SubjectExperiment.cache_store
+    25.times { |i| store.write("batched_experiment:#{i}", :red) }
+    store.write("other_experiment:1", :blue)
+
+    progress = []
+    total = store.delete_matched_in_batches("batched_experiment", batch_size: 10) do |deleted, running|
+      progress << [deleted, running]
+    end
+
+    assert_equal 25, total
+    assert_equal [[10, 10], [10, 20], [5, 25]], progress
+    assert_equal 0, store.count_matched("batched_experiment")
+    assert_equal :blue, store.read("other_experiment:1")
+  end
+
+  test "deleting matched keys in batches when there's nothing to delete" do
+    assert_equal 0, SubjectExperiment.cache_store.delete_matched_in_batches("nothing_here", batch_size: 10)
+  end
+
+  test "deleting matched keys in batches treats an underscore literally" do
+    store = SubjectExperiment.cache_store
+    store.write("foo_bar:1", :red)
+    store.write("foo/bar:1", :blue)
+
+    store.delete_matched_in_batches("foo_bar", batch_size: 10)
+
+    assert_nil store.read("foo_bar:1")
+    assert_equal :blue, store.read("foo/bar:1")
+  end
+
+  test "clearing an experiment cache in batches" do
+    experiment = SubjectExperiment.new
+    experiment.run
+
+    assert_equal 1, SubjectExperiment.clear_cache(batch_size: 10)
+    assert_nil SubjectExperiment.cache_store.read(experiment.cache_key)
+  end
+
+  test "deleting matched keys in batches rejects a batch size that isn't positive" do
+    assert_raises(ArgumentError) do
+      SubjectExperiment.cache_store.delete_matched_in_batches("anything", batch_size: 0)
+    end
+  end
+
   test "deleting matched keys treats an underscore literally" do
     store = SubjectExperiment.cache_store
     # What a namespaced Foo::Bar and a flat FooBar are named. An unescaped

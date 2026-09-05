@@ -12,12 +12,33 @@ class RenamedExperiment < ActiveExperiment::Base
   end
 end
 
+# Loaded once here rather than per test. `load_tasks` isn't guarded, so calling
+# it repeatedly re-loads the rake file, and each load resets the coverage
+# counters for it.
+Rails.application.load_tasks
+
 describe "the railtie" do
   # Shared with the dummy app's other integration tests, so whichever of them
   # touches the schema puts it back.
   RECORDER_TABLES = %w[
     active_experiment_experiments active_experiment_rollups active_experiment_overlaps
+    active_experiment_cache_entries
   ].freeze
+
+  # Swaps in a recorder backed by real tables for the duration of the block, and
+  # puts everything back afterwards.
+  def with_recorder(&block)
+    recorder = ActiveExperiment::Recorders::ActiveRecordRecorder.new
+    original, ActiveExperiment::Base.recorder = ActiveExperiment::Base.recorder, recorder
+    create_recorder_tables
+    RenamedExperiment.refresh_lifecycle!
+
+    block.call(recorder)
+  ensure
+    ActiveExperiment::Base.recorder = original
+    RenamedExperiment.refresh_lifecycle!
+    drop_recorder_tables
+  end
 
   def capture_stdout(&block)
     original, $stdout = $stdout, StringIO.new
@@ -70,6 +91,12 @@ describe "the railtie" do
     connection.add_index("active_experiment_overlaps",
       [:experiment_a, :variant_a, :experiment_b, :variant_b],
       unique: true, name: "index_ae_overlaps_uniqueness")
+
+    connection.create_table("active_experiment_cache_entries", id: false) do |t|
+      t.string :key, null: false
+      t.binary :value, null: false
+    end
+    connection.add_index("active_experiment_cache_entries", :key, unique: true)
   end
 
   def drop_recorder_tables
@@ -95,12 +122,11 @@ describe "the railtie" do
   end
 
   it "registers the rake tasks" do
-    Rails.application.load_tasks
-
     assert_includes Rake::Task.tasks.map(&:name), "active_experiment:forget"
     assert_includes Rake::Task.tasks.map(&:name), "active_experiment:conclude"
     assert_includes Rake::Task.tasks.map(&:name), "active_experiment:archive"
     assert_includes Rake::Task.tasks.map(&:name), "active_experiment:reopen"
+    assert_includes Rake::Task.tasks.map(&:name), "active_experiment:clear_cache"
   end
 
   it "concludes an experiment through the rake task" do
@@ -109,7 +135,6 @@ describe "the railtie" do
     create_recorder_tables
     RenamedExperiment.refresh_lifecycle!
 
-    Rails.application.load_tasks
     output = capture_stdout do
       Rake::Task["active_experiment:conclude"].tap(&:reenable).invoke("RenamedExperiment", "red", "red won")
     end
@@ -133,7 +158,6 @@ describe "the railtie" do
     recorder.update_experiment("task_experiment", class_name: "TaskExperiment")
     assert recorder.experiment("task_experiment")
 
-    Rails.application.load_tasks
     output = capture_stdout do
       # Named the way somebody would type it, which is the class rather than
       # the record -- the task underscores it to find the row.
@@ -154,7 +178,6 @@ describe "the railtie" do
 
     recorder.update_experiment("original_experiment", class_name: "RenamedExperiment")
 
-    Rails.application.load_tasks
     output = capture_stdout do
       Rake::Task["active_experiment:forget"].tap(&:reenable).invoke("RenamedExperiment")
     end
@@ -169,6 +192,122 @@ describe "the railtie" do
     drop_recorder_tables
   end
 
+  it "clears an orphaned cache by name through the rake task" do
+    original = ActiveExperiment::Base.cache_store
+    ActiveExperiment::Base.cache_store = ActiveSupport::Cache::MemoryStore.new
+    def (ActiveExperiment::Base.cache_store).count_matched(matcher, options = nil)
+      @data.count { |key, _| key.to_s.start_with?(matcher.to_s) }
+    end
+    def (ActiveExperiment::Base.cache_store).delete_matched_in_batches(matcher, batch_size: nil, options: nil)
+      deleted = count_matched(matcher)
+      delete_matched(/\A#{Regexp.escape(matcher.to_s)}/)
+      deleted
+    end
+    ActiveExperiment::Base.cache_store.write("deleted_experiment:abc", :red)
+
+    output = capture_stdout do
+      Rake::Task["active_experiment:clear_cache"].tap(&:reenable).invoke("DeletedExperiment")
+    end
+
+    # No class to ask, so it goes by name against the default store.
+    assert_match(/so clearing deleted_experiment by name/, output)
+    assert_match(/Cleared 1 entries for deleted_experiment/, output)
+  ensure
+    ActiveExperiment::Base.cache_store = original
+  end
+
+  it "reopens an experiment through the rake task" do
+    with_recorder do
+      Rake::Task["active_experiment:conclude"].tap(&:reenable).invoke("RenamedExperiment", "red")
+
+      output = capture_stdout do
+        Rake::Task["active_experiment:reopen"].tap(&:reenable).invoke("RenamedExperiment")
+      end
+
+      assert_match(/is running again/, output)
+      assert_equal :running, RenamedExperiment.state
+    end
+  end
+
+  it "archives an experiment through the rake task" do
+    with_recorder do
+      output = capture_stdout do
+        Rake::Task["active_experiment:archive"].tap(&:reenable).invoke("RenamedExperiment", "superseded")
+      end
+
+      assert_match(/archived/, output)
+      assert_equal :archived, RenamedExperiment.state
+    end
+  end
+
+  it "won't conclude an experiment that has no class left" do
+    with_recorder do
+      error = assert_raises(RuntimeError) do
+        Rake::Task["active_experiment:conclude"].tap(&:reenable).invoke("LongGoneExperiment", "red")
+      end
+
+      # Concluding writes state the class reads back, so there's nothing
+      # sensible to do without one.
+      assert_match(/No experiment class named LongGoneExperiment/, error.message)
+    end
+  end
+
+  it "says so when there's nothing recorded to forget" do
+    with_recorder do
+      output = capture_stdout do
+        Rake::Task["active_experiment:forget"].tap(&:reenable).invoke("RenamedExperiment")
+      end
+
+      assert_match(/Nothing recorded for original_experiment/, output)
+    end
+  end
+
+  it "won't forget anything when nothing is being recorded" do
+    error = assert_raises(RuntimeError) do
+      Rake::Task["active_experiment:forget"].tap(&:reenable).invoke("RenamedExperiment")
+    end
+
+    assert_match(/Nothing is recorded/, error.message)
+  end
+
+  it "mentions cached assignments left behind after forgetting" do
+    with_recorder do |recorder|
+      original, RenamedExperiment.cache_store = RenamedExperiment.cache_store,
+        ActiveExperiment::Cache::ActiveRecordCacheStore.new
+
+      recorder.update_experiment("original_experiment", class_name: "RenamedExperiment")
+      3.times { |i| RenamedExperiment.cache_store.write("original_experiment:#{i}", :red) }
+
+      output = capture_stdout do
+        Rake::Task["active_experiment:forget"].tap(&:reenable).invoke("RenamedExperiment")
+      end
+
+      assert_match(/3 cached assignments are still there/, output)
+      assert_match(/active_experiment:clear_cache\[RenamedExperiment\]/, output)
+    ensure
+      RenamedExperiment.cache_store = original
+    end
+  end
+
+  it "reports progress while clearing a cache in batches" do
+    with_recorder do
+      original, RenamedExperiment.cache_store = RenamedExperiment.cache_store,
+        ActiveExperiment::Cache::ActiveRecordCacheStore.new
+      25.times { |i| RenamedExperiment.cache_store.write("original_experiment:#{i}", :red) }
+
+      output = capture_stdout do
+        Rake::Task["active_experiment:clear_cache"].tap(&:reenable).invoke("RenamedExperiment", "10")
+      end
+
+      # Three chunks of ten, ten and five, each one printed as it goes.
+      assert_match(/Clearing original_experiment\.\.\. 10/, output)
+      assert_match(/Clearing original_experiment\.\.\. 20/, output)
+      assert_match(/Cleared 25 entries for original_experiment/, output)
+    ensure
+      RenamedExperiment.cache_store = original
+    end
+  end
+
   it "forgets by name when no class is left to ask" do
     recorder = ActiveExperiment::Recorders::ActiveRecordRecorder.new
     original, ActiveExperiment::Base.recorder = ActiveExperiment::Base.recorder, recorder
@@ -176,7 +315,6 @@ describe "the railtie" do
 
     recorder.update_experiment("deleted_experiment", class_name: "DeletedExperiment")
 
-    Rails.application.load_tasks
     output = capture_stdout do
       Rake::Task["active_experiment:forget"].tap(&:reenable).invoke("DeletedExperiment")
     end
@@ -195,7 +333,6 @@ describe "the railtie" do
 
     recorder.update_experiment("original_experiment", class_name: "RenamedExperiment")
 
-    Rails.application.load_tasks
     capture_stdout do
       # The underscored spelling finds the same class, and so the same record.
       Rake::Task["active_experiment:forget"].tap(&:reenable).invoke("renamed_experiment")

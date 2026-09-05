@@ -353,7 +353,13 @@ bin/rails active_experiment:forget[my_experiment]
 
 Overlaps are stored once per pair rather than once per experiment, so forgetting one experiment might also remove a still running experiment's view of that overlap.
 
-This is irreversible, and likely isn't how you want to end an experiment that ran to a conclusion. That history is often worth keeping.
+Forgetting an experiment removes what was recorded about it, but not the variant assignments it cached. Those are separate:
+
+```
+bin/rails active_experiment:clear_cache[my_experiment]
+```
+
+This is irreversible, and likely isn't how you want to end an experiment that ran to a conclusion. That history is often worth keeping and can be useful if you want to reopen the experiment.
 
 ### Buffering and durability
 

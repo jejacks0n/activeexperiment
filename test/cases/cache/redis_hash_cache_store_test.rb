@@ -51,6 +51,28 @@ class RedisHashCacheStoreTest < ActiveSupport::TestCase
     assert_equal 0, experiment.cache_store.length
   end
 
+  test "deleting matched keys in batches is a single delete" do
+    3.times { |i| SubjectExperiment.run(id: i) }
+
+    progress = []
+    total = SubjectExperiment.cache_store.delete_matched_in_batches(
+      SubjectExperiment.experiment_name, batch_size: 1
+    ) { |deleted, running| progress << [deleted, running] }
+
+    # Every assignment for an experiment lives in one hash, so there's nothing
+    # to page through. The batch size is accepted and ignored.
+    assert_equal 3, total
+    assert_equal [[3, 3]], progress
+    assert_equal 0, SubjectExperiment.cache_size
+  end
+
+  test "clearing an experiment cache in batches" do
+    3.times { |i| SubjectExperiment.run(id: i) }
+
+    assert_equal 3, SubjectExperiment.clear_cache(batch_size: 100)
+    assert_equal 0, SubjectExperiment.cache_size
+  end
+
   test "caching resolved variants" do
     experiment = SubjectExperiment.new(id: 1)
 
