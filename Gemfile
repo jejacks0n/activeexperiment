@@ -12,7 +12,8 @@ gem "minitest"
 gem "minitest-mock"
 gem "simplecov"
 gem "simplecov-cobertura"
-gem "rdoc"
+gem "rdoc", "< 6.6"
+gem "sdoc", require: false
 
 gem "rubocop", ">= 1.25.1", require: false
 gem "rubocop-minitest", require: false
