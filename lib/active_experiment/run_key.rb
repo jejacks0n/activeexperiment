@@ -2,6 +2,7 @@
 
 require "date"
 require "digest/sha2"
+require "active_support/core_ext/string/filters"
 
 module ActiveExperiment
   # == Run Keys

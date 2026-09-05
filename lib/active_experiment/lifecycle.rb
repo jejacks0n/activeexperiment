@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "active_support/core_ext/time/calculations"
+require "active_support/core_ext/string/filters"
 
 module ActiveExperiment
   # == Lifecycle
@@ -147,7 +148,10 @@ module ActiveExperiment
       # been edited since it was concluded, so it gets ignored. Assigning a
       # variant that doesn't exist would leave the run with no steps to call.
       def concluded_variant
-        winner = self.class.winning_variant
+        # Coerced, because a recorder that hands back a string would otherwise
+        # look exactly like an experiment whose winning variant has been
+        # removed, and fall through to the rollout without saying why.
+        winner = self.class.winning_variant&.to_sym
 
         winner if winner && variants[winner]
       end

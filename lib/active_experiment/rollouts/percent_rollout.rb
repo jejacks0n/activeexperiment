@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "zlib"
+require "active_support/core_ext/enumerable"
 
 module ActiveExperiment
   module Rollouts

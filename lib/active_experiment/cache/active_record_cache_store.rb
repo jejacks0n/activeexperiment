@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "active_record"
+require "active_support/core_ext/string/filters"
 
 module ActiveExperiment
   module Cache

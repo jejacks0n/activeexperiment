@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+# For +camelize+ below.
+require "active_support/core_ext/string/inflections"
+
 module ActiveExperiment
   # == Cache Stores
   #

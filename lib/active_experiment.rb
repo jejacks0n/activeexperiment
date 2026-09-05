@@ -11,6 +11,7 @@ end
 require "global_id"
 require "active_support"
 require "active_support/rails"
+require "active_support/core_ext/module/attribute_accessors"
 require "active_support/tagged_logging"
 
 require "active_experiment/version"

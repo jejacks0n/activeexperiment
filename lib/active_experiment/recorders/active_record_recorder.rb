@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require "active_record"
+require "active_support/core_ext/time/calculations"
+require "active_support/core_ext/string/filters"
 
 module ActiveExperiment
   module Recorders
