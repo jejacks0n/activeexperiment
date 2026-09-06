@@ -22,7 +22,8 @@ module ActiveExperiment
     #   value: cache entry
     #
     # To use this cache in an experiment the table needs to be created, which
-    # +bin/rails generate active_experiment:install+ writes a migration for.
+    # +bin/rails generate active_experiment:install --cache+ writes a migration
+    # for.
     # All experiments will use the same table by default for their cache store,
     # and can be distinguishable by the experiment name that's part of the
     # cache key.

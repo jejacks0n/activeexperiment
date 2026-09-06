@@ -67,14 +67,20 @@ Source code can be downloaded as part of the project on GitHub:
 
 * https://github.com/jejacks0n/activeexperiment
 
-Two optional parts of Active Experiment can by backed by Active Record and so it needs a migration. The install generator writes a single migration covering both. This migration isn't required, and is only useful if you plan on using Active Record as your caching strategy and / or for recording of experiment results.
+Two optional parts of Active Experiment can be backed by Active Record. These are two separate and independent features -- [recording](#recording), which tracks experiment data it can be reported on, and [caching](#caching), which keeps variant assignments stable. Both are off by default, until they're configured.
 
 ```bash
 bin/rails generate active_experiment:install
 bin/rails db:migrate
 ```
 
-The tables it creates serve two separate and independent features -- [recording](#recording), which tracks experiment data it can be reported on, and [caching](#caching), which keeps variant assignments stable. Both features are off by default, until they're configured. If you don't need one or the other, edit the migration and delete the part you don't need before running it; it's commented for clarity.
+
+If you only want to install the migration for one of the features, you can specify which using flags.
+
+```bash
+bin/rails generate active_experiment:install --recorder
+bin/rails generate active_experiment:install --cache
+```
 
 Adapters can be added to integrate with various services:
 
@@ -268,6 +274,19 @@ MyExperiment.cache_size # => 4211
 
 Both of the included cache stores count a single experiment's entries without walking the whole cache. Other stores probably raise an exception, since counting a subset of keys isn't part of the `ActiveSupport::Cache::Store` interface.
 
+When an experiment is over, `clear_cache` removes everything it cached. Passing a batch size deletes in chunks, and yields the size of each chunk along with the running total:
+
+```ruby
+MyExperiment.clear_cache
+MyExperiment.clear_cache(batch_size: 1_000) do |deleted, total|
+  puts "cleared #{total}"
+end
+```
+
+```bash
+bin/rails active_experiment:clear_cache[MyExperiment,1000]
+```
+
 The Active Record store can be pointed at a database other than the one `ActiveRecord::Base` is connected to. If you want to store experiment data in a database other than your primary, you can define a model and then use that as your `connection_class`. You can even use this pattern to store each experiments' data in a different table if you wanted to.
 
 ```ruby
@@ -313,7 +332,7 @@ end
 
 An experiment that shouldn't be recorded can opt out with `use_recorder :null_recorder`.
 
-Recorders subscribes to the same events any subscriber would -- `ActiveExperiment::RecordSubscriber` is a simple subscriber next to `ActiveExperiment::LogSubscriber`, and the [Writing a Custom Recorder](#writing-a-custom-recorder) section below covers writing your own.
+Recorders subscribes to the same events any subscriber would -- `ActiveExperiment::RecordSubscriber` is a simple subscriber next to `ActiveExperiment::LogSubscriber`, and the [Writing a custom recorder](#writing-a-custom-recorder--subscriber) section below covers writing your own.
 
 ### What gets recorded
 
@@ -389,6 +408,51 @@ ActiveExperiment::Recorders::ActiveRecordRecorder::Record.connects_to(
   database: { writing: :experiments }
 )
 ```
+
+## Ending an experiment
+
+Concluding an experiment allows recording the variant that won. From then on the experiment will assign that variant to everyone, without asking the rollout, segment rules, or its cache:
+
+```ruby
+MyExperiment.conclude!(variant: :red, notes: "3.2% lift, ran 6 weeks")
+```
+
+Nothing at the call sites changes, and the run blocks already there go on rendering the winning variant. Removing the experiment becomes ordinary cleanup you can do a file at a time, and rolling the decision back is a single call:
+
+```ruby
+MyExperiment.reopen!
+```
+
+An experiment that's long dead can be archived as well, which keeps it out of the way without changing what it assigns.
+
+```ruby
+MyExperiment.archive!
+```
+
+These need a recorder, since that's where the state is kept. With the default `:null_recorder` they raise instead of looking like they worked, so [Recording](#recording) has to be configured first.
+
+```bash
+bin/rails active_experiment:conclude[MyExperiment,red,"3.2% lift"]
+bin/rails active_experiment:reopen[MyExperiment]
+bin/rails active_experiment:archive[MyExperiment]
+```
+
+Concluding leaves the cached assignments alone, since they're what makes rolling back possible. Clearing them is a separate step, and worth doing in batches for a large experiment, see [Caching](#caching).
+
+State is read through the recorder and held per process, so most runs only cost a hash lookup, and every experiment sharing a recorder shares the lookup. A conclusion reaches other processes within `lifecycle_refresh_interval` seconds, 60 by default. To pick it up immediately in a console, `MyExperiment.refresh_lifecycle!`.
+
+## Explaining an assignment
+
+To ask what an experiment would assign for a context, without assigning it:
+
+```ruby
+MyExperiment.explain(current_user)
+# => { variant: :red, variant_source: :cached, run_key: "...", ... }
+```
+
+Running the experiment to find out would cache the assignment, record the run, and execute whatever the variant does, which in a view means rendering a partial or issuing a redirect. An explanation resolves the variant the same way a run does and then stops, so nothing is cached or recorded, the variant steps aren't called, and the experiment isn't added to `ActiveExperiment::Executed`.
+
+Segment rules do run, and so does the rollout. Both are expected to be free of side effects.
 
 ## Writing a custom recorder / subscriber
 

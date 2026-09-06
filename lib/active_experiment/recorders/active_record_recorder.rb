@@ -15,7 +15,7 @@ module ActiveExperiment
     #
     # Create the tables with:
     #
-    #   bin/rails generate active_experiment:install
+    #   bin/rails generate active_experiment:install --recorder
     #   bin/rails db:migrate
     #
     # Then turn recording on, globally or per experiment:
@@ -312,7 +312,7 @@ module ActiveExperiment
             #{columns.to_sentence}. Every process flushes its own counts as
             deltas that are added to the stored row, and the upsert that does
             it has nothing to conflict against without one. Re-run
-            `bin/rails generate active_experiment:install` for the migration
+            `bin/rails generate active_experiment:install --recorder` for the migration
             that creates it.
           MESSAGE
         end
@@ -329,7 +329,7 @@ module ActiveExperiment
               Active Record recorder writes to
               #{missing.length == 1 ? "doesn't" : "don't"} exist. Create
               #{missing.length == 1 ? "it" : "them"} with
-              `bin/rails generate active_experiment:install` followed by
+              `bin/rails generate active_experiment:install --recorder` followed by
               `bin/rails db:migrate`.
             MESSAGE
           end

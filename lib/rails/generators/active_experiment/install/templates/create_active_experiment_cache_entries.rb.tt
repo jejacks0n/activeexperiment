@@ -1,0 +1,44 @@
+# frozen_string_literal: true
+
+# The table ActiveExperiment::Cache::ActiveRecordCacheStore keeps variant
+# assignments in, which is only needed if you want to use that cache store. To
+# configure it as the default cache store use:
+#
+#   config.active_experiment.default_cache_store = :active_record
+#
+# And to configure it on a single experiment use:
+#
+#   class MyExperiment < ActiveExperiment::Base
+#     variant(:red) { "red" }
+#     variant(:blue) { "blue" }
+#
+#     use_cache_store :active_record
+#   end
+#
+# This table holds a row for every distinct context an experiment is ever run
+# with, and an experiment run on a combination if you build complex contexts,
+# like every user viewing every post for example, can reach millions of rows on
+# its own. `MyExperiment.cache_size` measures it if you want to track experiment
+# cache sizes.
+#
+# These entries also have to live for as long as the experiment does. An
+# assignment that expires mid-experiment isn't a stable assignment, so don't
+# put a TTL or a cleanup job on this table. Ending an experiment is what clears
+# it, in batches:
+#
+#   MyExperiment.clear_cache(batch_size: 1_000)
+#
+class CreateActiveExperimentCacheEntries < ActiveRecord::Migration[<%= ActiveRecord::Migration.current_version %>]
+  def change
+    # The unique index is required. Writes upsert on it so that two requests
+    # resolving the same context at once don't collide, and without it
+    # PostgreSQL and SQLite reject the statement outright while MySQL quietly
+    # accumulates duplicate rows.
+    create_table :active_experiment_cache_entries, id: false do |t|
+      t.string :key, null: false
+      t.binary :value, null: false
+    end
+
+    add_index :active_experiment_cache_entries, :key, unique: true
+  end
+end

@@ -21,7 +21,79 @@ left to go wrong silently. Either way a write against a table that's missing it
 raises an `ActiveExperiment::ExecutionError` naming the index to add, rather
 than the adapter's error.
 
+### Added
+
+* **Experiments can be recorded.** Nothing is recorded by default, since the
+  default recorder is the `:null_recorder`, so this changes nothing until you
+  configure one.
+
+  ```bash
+  bin/rails generate active_experiment:install
+  bin/rails db:migrate
+  ```
+
+  ```ruby
+  config.active_experiment.default_recorder = :active_record
+  ```
+
+  The recorders that ship with it store an entry per experiment, daily counts
+  per variant, and how experiments that ran together are related. Counts are
+  buffered per process, and flushed periodically.
+
+* **Experiments can be concluded.** Concluding an experiment records the variant
+  that won, and from then on the experiment assigns the winning variant to
+  everyone:
+
+  ```ruby
+  MyExperiment.conclude!(variant: :red, notes: "3.2% lift, ran 6 weeks")
+  MyExperiment.reopen! # you can roll back the conclusion if needed
+  MyExperiment.archive! # you can also archive an experiment and its data
+  ```
+
+  Once an experiment is concluded, cleaning it up can happen one file at a time
+  if needed, and turning it back on is a single call. Cached assignments are
+  left alone, since they're what makes it reversible and have to be removed in a
+  separate action. A conclusion reaches every process within about a minute.
+
+* **`explain` answers what an experiment would assign, without assigning it.**
+
+  ```ruby
+  MyExperiment.explain(current_user)
+  # => { variant: :red, variant_source: :cached, ... }
+  ```
+
+  Running the experiment to find out would cache the assignment, record the
+  run, and execute whatever the variant does.
+
+* **Rollouts can describe the split they declare.** `describe` returns the
+  name it was registered as, the options it was given, and the share of
+  contexts each variant is expected to get.
+
+* **Caches can be cleared in batches.** `clear_cache` is a single statement by
+  default, which is a poor idea for an experiment with millions of cached
+  assignments. Passing a batch size deletes in chunks and yields progress:
+
+  ```ruby
+  MyExperiment.clear_cache(batch_size: 1_000) { |deleted, total| puts total }
+  ```
+
+  ```bash
+  bin/rails active_experiment:clear_cache[MyExperiment,1000]
+  ```
+
+* **Rake tasks** for ending an experiment and cleaning up after it:
+  `active_experiment:conclude`, `:reopen`, `:archive`, `:clear_cache`, and
+  `:forget`, which deletes what was recorded about an experiment. The last two
+  work by name once the class has been deleted, which is when they're most
+  useful.
+
 ### Changed
+
+* Experiments now track how their variant was decided, and `serialize`
+  includes it as `variant_source`. The source is one of `:preset`, `:concluded`,
+  `:skipped`, `:cached`, `:segment`, `:rollout`, or `:default`.
+
+  If you assert on the exact hash `serialize` returns, this adds a key to it.
 
 * The Active Record cache store can be pointed at a database other than the one
   `ActiveRecord::Base` is connected to, by passing a class to use instead:

@@ -387,7 +387,7 @@ class ActiveRecordRecorderTestCase < ActiveSupport::TestCase
     error = assert_raises(ActiveExperiment::ExecutionError) { @recorder.flush! }
 
     assert_match(/active_experiment_rollups/, error.message)
-    assert_match(/generate active_experiment:install/, error.message)
+    assert_match(/generate active_experiment:install --recorder/, error.message)
   end
 
   test "writing to a table with no unique index to conflict against says so" do
