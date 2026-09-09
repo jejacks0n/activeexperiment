@@ -82,9 +82,14 @@ bin/rails generate active_experiment:install --recorder
 bin/rails generate active_experiment:install --cache
 ```
 
-Adapters can be added to integrate with various services:
+Adapters can be added to integrate with various services / tooling:
 
-- [Unleash adapter](https://github.com/jejacks0n/activeexperiment-unleash) 
+- [Flipper adapter](https://github.com/jejacks0n/activeexperiment-flipper) -- an flipper adapter (doesn't yet exist).
+- [Unleash adapter](https://github.com/jejacks0n/activeexperiment-unleash) -- an unleash adapter.
+
+You can visualize and look at experiment data that have been recorded:
+
+- [Dashboard](https://github.com/jejacks0n/activeexperiment-dashboard) -- a mountable engine that lists and displays experiment data.
 
 ## Advanced experimentation
 
@@ -703,4 +708,3 @@ Active Experiment is released under the MIT license:
 Copyright 2022-2026 &copy; [jejacks0n](https://github.com/jejacks0n)
 
 ## Make Code Not War ♥
-
