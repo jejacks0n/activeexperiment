@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "active_record"
+require "json"
 require "active_support/core_ext/time/calculations"
 require "active_support/core_ext/string/filters"
 
@@ -359,7 +360,8 @@ module ActiveExperiment
         def parse_json(value, default: nil)
           return default if value.blank?
 
-          ActiveSupport::JSON.decode(value)
+          # Deliberately `JSON.parse` rather than `ActiveSupport::JSON.decode`.
+          JSON.parse(value)
         rescue JSON::ParserError
           default
         end

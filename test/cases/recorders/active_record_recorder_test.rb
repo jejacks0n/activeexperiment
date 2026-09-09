@@ -170,6 +170,27 @@ class ActiveRecordRecorderTestCase < ActiveSupport::TestCase
     assert_equal first_seen, @recorder.experiment(SubjectExperiment.experiment_name)[:first_seen_at]
   end
 
+  test "reading an experiment back doesn't hand JSON.parse options it can't take" do
+    SubjectExperiment.set(variant: :red).run(id: 1)
+    @recorder.flush!
+
+    # `ActiveSupport::JSON.decode` passes its options hash to `JSON.parse`
+    # positionally, and json 3.0 dropped that argument, so a recorder routed
+    # through decode raises `ArgumentError` reading any row back. Standing in a
+    # parse that only accepts the source reproduces that regardless of which
+    # json the bundle resolved, which matters because the lockfile isn't
+    # checked in and CI resolves a newer one than a local checkout usually has.
+    parse = JSON.method(:parse)
+    source_only_parse = ->(source) { parse.call(source) }
+
+    recorded = JSON.stub(:parse, source_only_parse) do
+      @recorder.experiment(SubjectExperiment.experiment_name)
+    end
+
+    assert_equal [:red, :blue], recorded[:variant_names]
+    assert_equal :percent, recorded[:rollout][:type].to_sym
+  end
+
   test "updating an experiment doesn't make it look like it just ran" do
     SubjectExperiment.set(variant: :red).run(id: 1)
     @recorder.flush!
